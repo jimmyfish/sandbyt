@@ -1,0 +1,351 @@
+openapi: 3.0.3
+info:
+  title: Newsly API
+  description: A FastAPI application with PostgreSQL connection
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+
+paths:
+  /:
+    get:
+      summary: Root
+      description: Root endpoint
+      operationId: root_get
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+              examples:
+                success:
+                  value:
+                    status: success
+                    message: Welcome to Newsly API
+
+  /health:
+    get:
+      summary: Health check
+      description: Health check endpoint to verify API and database connectivity
+      operationId: health_check_get
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+              examples:
+                healthy:
+                  value:
+                    status: success
+                    data:
+                      status: healthy
+                      database: connected
+                      message: API and database are operational
+        "503":
+          description: Dependency unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+              examples:
+                unavailable:
+                  value:
+                    status: error
+                    message: API or database dependency is unavailable
+                    data:
+                      error: "connection refused"
+
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register user
+      description: Create a new user account with hashed password
+      operationId: auth_register_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_UserResponse"
+              examples:
+                created:
+                  value:
+                    status: success
+                    data:
+                      id: 1
+                      email: user@example.com
+                      created_at: "2025-01-01T00:00:00Z"
+        "400":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+              examples:
+                bad_request:
+                  value:
+                    detail: Email already registered
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login
+      description: Authenticate a user with email and password
+      operationId: auth_login_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLogin"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_LoginResponse"
+              examples:
+                success:
+                  value:
+                    status: success
+                    data:
+                      access_token: "<jwt>"
+                      token_type: bearer
+                      user:
+                        id: 1
+                        email: user@example.com
+                        created_at: "2025-01-01T00:00:00Z"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+              examples:
+                unauthorized:
+                  value:
+                    detail: Invalid email or password
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /auth/profile:
+    get:
+      tags:
+        - Auth
+      summary: Profile
+      description: Return the authenticated user's profile details
+      operationId: auth_profile_get
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_UserResponse"
+        "401":
+          description: Not authenticated / invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+              examples:
+                not_authenticated:
+                  value:
+                    detail: Not authenticated
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Request/response models (mirrors app/schemas/*.py) ---
+    UserCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+
+    UserLogin:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 72
+
+    UserResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - access_token
+        - token_type
+        - user
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        token_type:
+          type: string
+          enum: [bearer]
+        user:
+          $ref: "#/components/schemas/UserResponse"
+
+    # --- StandardResponse envelope specializations ---
+    StandardResponse_Object:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: success or error
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    StandardResponse_UserResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/UserResponse"
+          nullable: true
+
+    StandardResponse_LoginResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/LoginResponse"
+          nullable: true
+
+    # --- Minimal error models (FastAPI defaults) ---
+    FastAPIError:
+      type: object
+      additionalProperties: true
+      required:
+        - detail
+      properties:
+        detail:
+          description: Error detail (may be string or structured)
+
+    HTTPValidationError:
+      type: object
+      additionalProperties: true
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

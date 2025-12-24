@@ -9,6 +9,8 @@ servers:
 tags:
   - name: Auth
     description: Authentication endpoints
+  - name: Market
+    description: Bybit market data endpoints
 
 paths:
   /:
@@ -189,6 +191,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
 
+  /market/price:
+    get:
+      tags:
+        - Market
+      summary: Current price
+      description: Return the current symbol price from Bybit (sandbox/mainnet depending on configuration)
+      operationId: market_price_get
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 30
+          description: Trading symbol, e.g. BTCUSDT
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [spot, linear, inverse, option]
+            default: spot
+          description: Bybit market category (spot/linear/inverse/option)
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_MarketPrice"
+        "502":
+          description: Upstream (Bybit) error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -326,6 +366,48 @@ components:
         data:
           allOf:
             - $ref: "#/components/schemas/LoginResponse"
+          nullable: true
+
+    StandardResponse_MarketPrice:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/MarketPrice"
+          nullable: true
+
+    MarketPrice:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+        - category
+        - price
+      properties:
+        symbol:
+          type: string
+        category:
+          type: string
+          enum: [spot, linear, inverse, option]
+        price:
+          type: string
+          description: Last traded price (decimal serialized as string)
+        upstream_time_ms:
+          type: integer
+          format: int64
           nullable: true
 
     # --- Minimal error models (FastAPI defaults) ---

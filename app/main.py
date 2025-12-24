@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.db.database import get_db_pool, close_db_pool, init_db
 from app.routers.auth import router as auth_router
+from app.routers.market import router as market_router
 from app.schemas.common import StandardResponse
 
 
@@ -24,6 +25,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(market_router)
 
 
 @app.get("/", response_model=StandardResponse[dict], response_model_exclude_none=True)

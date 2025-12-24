@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRES_MINUTES: int = 60
 
+    # Bybit settings (market data; public endpoints)
+    # Configured entirely via environment variables (no testnet/mainnet URLs hardcoded here).
+    # Example values:
+    # - https://api-testnet.bybit.com
+    # - https://api.bybit.com
+    BYBIT_BASE_URL: str = ""
+    BYBIT_TIMEOUT_SECONDS: float = 10.0
+
     class Config:
         env_file = ".env"
         case_sensitive = True

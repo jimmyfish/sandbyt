@@ -56,8 +56,32 @@ The API will be available at:
 - `POST /auth/login` - Authenticate with `email`/`password` JSON body (password ≤72 chars) and receive a bearer JWT plus user info
 - `GET /auth/profile` - Return the authenticated user's profile, including `balance` (requires `Authorization: Bearer <token>` header)
 - `GET /users/me` - Return the authenticated user's profile, including `balance` (requires `Authorization: Bearer <token>` header)
+- `GET /market/price` - Return the current symbol price from Bybit (public endpoint)
 
 Passwords are hashed using `passlib`'s bcrypt implementation before being stored (bcrypt allows up to 72 characters). The `users` table is created automatically on startup if it does not exist.
+
+## Bybit configuration
+
+This project can query **Bybit market data** from either:
+
+- **Sandbox/testnet**: `api-testnet.bybit.com`
+- **Mainnet**: `api.bybit.com`
+
+Pick one by setting `BYBIT_BASE_URL` to either base URL.
+
+Environment variables (in `.env`):
+
+```env
+# Bybit integration
+BYBIT_BASE_URL=https://api-testnet.bybit.com
+BYBIT_TIMEOUT_SECONDS=10
+```
+
+Example:
+
+```bash
+curl "http://localhost:8000/market/price?symbol=BTCUSDT&category=spot"
+```
 
 ### Response shape
 

@@ -21,19 +21,12 @@ class Settings(BaseSettings):
     JWT_EXPIRES_MINUTES: int = 60
 
     # Bybit settings (market data; public endpoints)
-    # If BYBIT_SANDBOX=true, uses Bybit testnet (api-testnet.bybit.com).
-    BYBIT_SANDBOX: bool = True
-    BYBIT_MAINNET_BASE_URL: str = "https://api.bybit.com"
-    BYBIT_TESTNET_BASE_URL: str = "https://api-testnet.bybit.com"
-    # Optional override (useful for proxies or restricted networks).
-    BYBIT_BASE_URL_OVERRIDE: str | None = None
+    # Configured entirely via environment variables (no testnet/mainnet URLs hardcoded here).
+    # Example values:
+    # - https://api-testnet.bybit.com
+    # - https://api.bybit.com
+    BYBIT_BASE_URL: str = ""
     BYBIT_TIMEOUT_SECONDS: float = 10.0
-
-    @property
-    def BYBIT_BASE_URL(self) -> str:
-        if self.BYBIT_BASE_URL_OVERRIDE:
-            return self.BYBIT_BASE_URL_OVERRIDE
-        return self.BYBIT_TESTNET_BASE_URL if self.BYBIT_SANDBOX else self.BYBIT_MAINNET_BASE_URL
 
     class Config:
         env_file = ".env"

@@ -47,7 +47,11 @@ async def fetch_last_price(*, symbol: str, category: str = "spot") -> BybitTicke
     if not normalized_symbol:
         raise BybitUpstreamError("Symbol is empty")
 
-    url = f"{settings.BYBIT_BASE_URL}/v5/market/tickers"
+    base_url = (settings.BYBIT_BASE_URL or "").strip().rstrip("/")
+    if not base_url:
+        raise BybitUpstreamError("BYBIT_BASE_URL is not configured")
+
+    url = f"{base_url}/v5/market/tickers"
     params = {"category": category, "symbol": normalized_symbol}
     headers = {
         "Accept": "application/json",

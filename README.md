@@ -66,14 +66,14 @@ This project can query **Bybit market data** from either:
 - **Sandbox/testnet**: `api-testnet.bybit.com`
 - **Mainnet**: `api.bybit.com`
 
+Pick one by setting `BYBIT_BASE_URL` to either base URL.
+
 Environment variables (in `.env`):
 
 ```env
 # Bybit integration
-BYBIT_SANDBOX=true
+BYBIT_BASE_URL=https://api-testnet.bybit.com
 BYBIT_TIMEOUT_SECONDS=10
-# Optional override (useful behind proxies / restricted networks)
-# BYBIT_BASE_URL_OVERRIDE=https://api-testnet.bybit.com
 ```
 
 Example:

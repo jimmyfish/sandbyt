@@ -41,7 +41,7 @@ async def fetch_last_price(*, symbol: str, category: str = "spot") -> BybitTicke
     """
     Fetch current ticker last price from Bybit v5 market tickers endpoint.
 
-    Uses sandbox/mainnet base URL depending on settings.BYBIT_SANDBOX.
+    Uses the base URL configured via settings.BYBIT_BASE_URL.
     """
     normalized_symbol = symbol.strip().upper()
     if not normalized_symbol:

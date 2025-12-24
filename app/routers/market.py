@@ -22,7 +22,7 @@ async def get_current_symbol_price(
         description="Bybit market category (spot/linear/inverse/option)",
     ),
 ):
-    """Return current symbol price from Bybit (sandbox/mainnet depending on config)."""
+    """Return current symbol price from Bybit (uses BYBIT_BASE_URL)."""
     try:
         ticker = await fetch_last_price(symbol=symbol, category=category)
     except BybitUpstreamError as e:

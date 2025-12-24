@@ -54,12 +54,13 @@ The API will be available at:
 - `GET /health` - Health check endpoint (checks API and database connectivity)
 - `POST /auth/register` - Create a new user account (`email`, `password` ≤72 chars)
 - `POST /auth/login` - Authenticate with `email`/`password` JSON body (password ≤72 chars) and receive a bearer JWT plus user info
-- `GET /auth/profile` - Return the authenticated user's profile (requires `Authorization: Bearer <token>` header)
+- `GET /auth/profile` - Return the authenticated user's profile, including `balance` (requires `Authorization: Bearer <token>` header)
+- `GET /users/me` - Return the authenticated user's profile, including `balance` (requires `Authorization: Bearer <token>` header)
 - `GET /market/price` - Return the current symbol price from Bybit (public endpoint)
 
 Passwords are hashed using `passlib`'s bcrypt implementation before being stored (bcrypt allows up to 72 characters). The `users` table is created automatically on startup if it does not exist.
 
-## Bybit sandbox (testnet) configuration
+## Bybit configuration
 
 This project can query **Bybit market data** from either:
 

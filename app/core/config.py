@@ -28,6 +28,13 @@ class Settings(BaseSettings):
 
     # Binance API settings
     BINANCE_API_URL: str = "https://api.binance.com"
+    # Bybit settings (market data; public endpoints)
+    # Configured entirely via environment variables (no testnet/mainnet URLs hardcoded here).
+    # Example values:
+    # - https://api-testnet.bybit.com
+    # - https://api.bybit.com
+    BYBIT_BASE_URL: str = ""
+    BYBIT_TIMEOUT_SECONDS: float = 10.0
 
     class Config:
         env_file = ".env"

@@ -28,13 +28,28 @@ async def get_db_pool():
 
 
 async def init_db():
-    """Initialize database connection pool.
-    
-    Note: Schema migrations are handled by Flyway.
-    Run migrations with: ./scripts/run_migrations.sh
-    """
-    # Just ensure the pool is created - migrations are handled by Flyway
-    await get_db_pool()
+    """Ensure required database tables exist"""
+    pool = await get_db_pool()
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                balance NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
+            """
+        )
+        # Backward-compatible migration: add balance to existing installs.
+        await conn.execute(
+            """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS balance NUMERIC(20, 8) NOT NULL DEFAULT 0;
+            """
+        )
 
 
 async def create_user(email: str, password_hash: str, name: str):
@@ -53,9 +68,15 @@ async def create_user(email: str, password_hash: str, name: str):
     async with pool.acquire() as conn:
         return await conn.fetchrow(
             """
+<<<<<<< HEAD
             INSERT INTO users (email, password, name, balance)
             VALUES ($1, $2, $3, 0.00000000000000000000)
             RETURNING id, email, name, balance, created_at;
+=======
+            INSERT INTO users (email, password)
+            VALUES ($1, $2)
+            RETURNING id, email, balance, created_at;
+>>>>>>> 8dcfcd02f02dc3c8f4bcfc10d04995fc2e46c915
             """,
             email,
             password_hash,
@@ -74,7 +95,11 @@ async def get_user_by_email(email: str):
     async with pool.acquire() as conn:
         return await conn.fetchrow(
             """
+<<<<<<< HEAD
             SELECT id, email, password, name, balance, created_at
+=======
+            SELECT id, email, password, balance, created_at
+>>>>>>> 8dcfcd02f02dc3c8f4bcfc10d04995fc2e46c915
             FROM users
             WHERE email = $1;
             """,

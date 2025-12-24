@@ -19,7 +19,8 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     name: str
-    balance: Decimal
+    # Represented as string to preserve precision (stored as NUMERIC in Postgres).
+    balance: str = Field(min_length=1)
     created_at: datetime
 
 

@@ -19,8 +19,8 @@ def _serialize_user(record) -> UserResponse:
         {
             "id": record["id"],
             "email": record["email"],
-            "name": record.get("name", ""),  # Default to empty string if not present (backward compatibility)
-            "balance": record.get("balance", Decimal("0")),  # Default to 0 if not present (backward compatibility)
+            "name": record.get("name", ""), 
+            "balance": str(record["balance"]),
             "created_at": record["created_at"],
         }
     )

@@ -12,6 +12,9 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown events"""
     await get_db_pool()
     await init_db()
+    # Note: Database migrations are handled by Flyway
+    # Run migrations manually with: ./scripts/run_migrations.sh
+    # or: flyway migrate -configFiles=flyway.conf
     yield
     await close_db_pool()
 

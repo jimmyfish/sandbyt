@@ -21,9 +21,14 @@ These rules define how to build, test, and extend the Newsly FastAPI service. Fo
 - After changing deps, update setup instructions if needed.
 
 ## 4. Database & Migrations
-- All schema changes go through code-based migrations (future tooling TBD). Until then, modify `init_db()` carefully and keep backward compatibility.
+- All schema changes MUST go through Flyway migration files in `db/migration/`.
+- Migrations use Flyway naming convention: `V{version}__{description}.sql` (e.g., `V1__initial_schema.sql`)
+- Run migrations with: `./scripts/run_migrations.sh` or `flyway migrate -configFiles=flyway.conf`
+- Never modify `init_db()` to create tables - it only initializes the connection pool.
 - Table/column names use snake_case. Prefer `TIMESTAMPTZ` for timestamps.
 - Never bypass the connection pool—use helpers in `database.py`.
+- Flyway tracks migrations in `schema_version` table automatically.
+- Migrations are immutable - Flyway validates file checksums to prevent modifications.
 
 ## 5. Authentication & Security
 - Passwords must be hashed with `passlib`’s bcrypt context. Never log or return hashes.

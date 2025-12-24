@@ -1,0 +1,593 @@
+# Tasks: Initial Migrations - PHP Binance Sandbox to Python FastAPI
+
+## Task Overview
+
+This implementation plan breaks down the migration design into atomic, executable TDD coding tasks. Each task follows the RED-GREEN-REFACTOR-VERIFY TDD workflow and includes comprehensive test specifications before implementation.
+
+The implementation will:
+- Extend existing database layer with new tables and functions
+- Add Binance API integration service
+- Create new routers for trading features
+- Extend user model with name and balance fields
+- Provide pandas DataFrame conversion helpers for research team
+
+## Steering Document Compliance
+
+**Structure Compliance:**
+- New routers in `app/routers/` following feature-based organization
+- Database functions extend `app/db/database.py` using existing patterns
+- Schemas in `app/schemas/` organized by domain
+- Service layer in new `app/services/` directory
+
+**Technical Compliance:**
+- Uses asyncpg directly (no ORM) for all database operations
+- Maintains existing connection pool pattern (`get_db_pool()`)
+- All operations use async/await patterns
+- Reuses existing authentication system (`get_current_user` dependency)
+- Uses `StandardResponse[DataT]` envelope for all endpoints
+
+## Tasks
+
+- [x] 1. Extend database schema with new tables
+  - **Test Specs**: Validate that all 6 new tables are created correctly with proper schema, constraints, and foreign keys
+  - **Test Location**: `tests/unit/test_database_schema.py`
+  - **Test Cases**:
+    - Test `init_db()` creates all new tables (transact, watchlists, log, strategies, trade_strategies)
+    - Test users table extension includes name and balance fields with correct types
+    - Test transact table has correct foreign key to users
+    - Test trade_strategies table has correct foreign key to strategies
+    - Test DECIMAL(30,20) precision for all financial fields
+    - Test table creation is idempotent (CREATE TABLE IF NOT EXISTS)
+    - Test foreign key constraints are properly established
+  - **Acceptance**: All schema tests pass, tables exist with correct structure, foreign keys work correctly
+  - **Implementation**: Extend `init_db()` function in `app/db/database.py` to add CREATE TABLE statements for all 6 tables, update users table to include name and balance fields
+  - Add CREATE TABLE statements for transact, watchlists, log, strategies, trade_strategies
+  - Update users table to include name (TEXT NOT NULL) and balance (DECIMAL(30,20) DEFAULT 0)
+  - Ensure all foreign key relationships are established
+  - Use `CREATE TABLE IF NOT EXISTS` pattern for idempotency
+  - _Leverage: app/db/database.py (init_db function pattern)_
+  - _Requirements: 1.1-1.10_
+
+- [x] 2. Extend user schema with name and balance fields
+  - **Test Specs**: Validate that UserCreate and UserResponse schemas include name and balance fields with proper validation
+  - **Test Location**: `tests/unit/test_user_schema.py`
+  - **Test Cases**:
+    - Test UserCreate accepts name field (required)
+    - Test UserCreate rejects missing name field
+    - Test UserResponse includes name and balance fields
+    - Test balance defaults to 0.00000000000000000000 in database
+    - Test name field validation (required, non-empty)
+    - Test balance field uses Decimal type for precision
+  - **Acceptance**: All schema validation tests pass, name is required, balance is included in responses
+  - **Implementation**: Update `app/schemas/user.py` to add name field to UserCreate and name/balance fields to UserResponse
+  - Add `name: str` field to UserCreate with Field validation
+  - Add `name: str` and `balance: Decimal` fields to UserResponse
+  - Update `_serialize_user()` helper in auth router to include name and balance
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 2.1-2.5_
+
+- [x] 3. Update create_user function to handle name and balance
+  - **Test Specs**: Validate that user creation includes name field and initializes balance to 0
+  - **Test Location**: `tests/unit/test_database_user.py`
+  - **Test Cases**:
+    - Test create_user accepts name parameter and stores it correctly
+    - Test create_user initializes balance to 0.00000000000000000000
+    - Test create_user returns user record with name and balance fields
+    - Test balance precision is maintained (DECIMAL(30,20))
+    - Test user creation fails if name is missing
+  - **Acceptance**: All user creation tests pass, name is stored, balance defaults to 0
+  - **Implementation**: Update `create_user()` function in `app/db/database.py` to accept name parameter and initialize balance
+  - Modify INSERT statement to include name and balance fields
+  - Update RETURNING clause to include name and balance
+  - Update `get_user_by_email()` to return name and balance fields
+  - Update auth router `create_user()` call to pass name from UserCreate schema
+  - _Leverage: app/db/database.py (create_user function pattern)_
+  - _Requirements: 2.1-2.5_
+
+- [x] 4. Extend configuration with Binance API settings
+  - **Test Specs**: Validate that Binance API configuration settings are loaded from environment variables with proper defaults
+  - **Test Location**: `tests/unit/test_config.py`
+  - **Test Cases**:
+    - Test BINANCE_API_URL defaults to "https://api.binance.com"
+    - Test BINANCE_TESTNET_API_URL defaults to "https://testnet.binance.vision"
+    - Test BINANCE_USE_TESTNET defaults to False
+    - Test settings can be overridden via environment variables
+    - Test settings are type-safe (str for URLs, bool for testnet flag)
+  - **Acceptance**: All configuration tests pass, settings load correctly with defaults and environment overrides
+  - **Implementation**: Extend `Settings` class in `app/core/config.py` to add Binance API configuration fields
+  - Add BINANCE_API_URL, BINANCE_TESTNET_API_URL, BINANCE_USE_TESTNET fields
+  - Set appropriate default values
+  - Document in class docstring
+  - _Leverage: app/core/config.py (Settings class pattern)_
+  - _Requirements: 3.1-3.9_
+
+- [x] 5. Create constants module for error messages
+  - **Test Specs**: Validate that all error message constants are defined and accessible
+  - **Test Location**: `tests/unit/test_constants.py`
+  - **Test Cases**:
+    - Test all error constants are defined (ERROR_INSUFFICIENT_BALANCE, ERROR_DUPLICATE_ORDER, etc.)
+    - Test all success constants are defined (SUCCESS_LOG_CREATED, SUCCESS_ORDER_CLOSED)
+    - Test constants are string values (not None)
+    - Test constants can be imported from app.core.constants
+  - **Acceptance**: All constants tests pass, all error and success messages are defined
+  - **Implementation**: Create `app/core/constants.py` with all error and success message constants
+  - Define ERROR_INSUFFICIENT_BALANCE, ERROR_DUPLICATE_ORDER, ERROR_ORDER_NOT_FOUND
+  - Define ERROR_BINANCE_CONNECTION, ERROR_BINANCE_INVALID_RESPONSE
+  - Define SUCCESS_LOG_CREATED, SUCCESS_ORDER_CLOSED
+  - _Requirements: 11.1-11.8_
+
+- [x] 6. Create Binance service with get_current_price function
+  - **Test Specs**: Validate that Binance API integration fetches prices correctly, handles errors, and supports testnet/production switching
+  - **Test Location**: `tests/unit/test_binance_service.py`
+  - **Test Cases**:
+    - Test get_current_price successfully fetches price from production API
+    - Test get_current_price uses testnet API when BINANCE_USE_TESTNET is True
+    - Test get_current_price returns Decimal type for precision
+    - Test get_current_price raises BinanceConnectionError on connection failures
+    - Test get_current_price raises BinanceInvalidResponseError on invalid responses
+    - Test get_current_price raises BinancePriceNotFoundError when price field is missing
+    - Test get_current_price handles timeout errors
+    - Test get_current_price handles HTTP error status codes (400, 500, 503)
+  - **Acceptance**: All Binance service tests pass, price fetching works for both testnet and production, all error cases are handled
+  - **Implementation**: Create `app/services/binance.py` with Binance API client and exception classes
+  - Create exception classes: BinanceAPIError, BinanceConnectionError, BinanceInvalidResponseError, BinancePriceNotFoundError
+  - Implement get_current_price() using httpx.AsyncClient
+  - Add testnet/production URL switching logic
+  - Handle all error scenarios with appropriate exceptions
+  - Use Decimal for price return type
+  - _Requirements: 3.1-3.9_
+
+- [x] 7. Implement user balance management database functions
+  - **Test Specs**: Validate that user balance can be updated atomically with add/subtract operations and retrieved correctly
+  - **Test Location**: `tests/unit/test_database_user_balance.py`
+  - **Test Cases**:
+    - Test update_user_balance adds amount correctly
+    - Test update_user_balance subtracts amount correctly
+    - Test update_user_balance maintains DECIMAL(30,20) precision
+    - Test update_user_balance returns updated user record
+    - Test get_user_with_balance retrieves user with balance field
+    - Test balance operations are atomic (transaction safety)
+    - Test balance cannot go negative (if constraint exists)
+  - **Acceptance**: All balance management tests pass, operations are atomic and maintain precision
+  - **Implementation**: Add `update_user_balance()` and `get_user_with_balance()` functions to `app/db/database.py`
+  - Implement update_user_balance with operation parameter ("add" or "subtract")
+  - Use database transaction for atomicity
+  - Implement get_user_with_balance to fetch user with balance
+  - _Leverage: app/db/database.py (existing user function patterns)_
+  - _Requirements: 2.5, 4.7, 5.7_
+
+- [ ] 8. Implement transaction (order) database functions
+  - **Test Specs**: Validate that transaction CRUD operations work correctly with proper status handling and computed fields
+  - **Test Location**: `tests/unit/test_database_transaction.py`
+  - **Test Cases**:
+    - Test create_transaction creates record with status=1 (active)
+    - Test create_transaction stores buy_price, quantity, symbol, user_id correctly
+    - Test get_active_transaction finds active transaction (status=1) for user and symbol
+    - Test get_active_transaction returns None when no active transaction exists
+    - Test update_transaction updates sell_price and status correctly
+    - Test get_user_transactions returns all transactions for user
+    - Test get_user_transactions filters by active_only=True
+    - Test get_user_transactions filters by symbol
+    - Test get_user_transactions orders by status ASC, created_at DESC
+    - Test get_user_transactions calculates computed fields (diff, buyAggregate, sellAggregate, diffDollar)
+    - Test computed fields handle NULL sell_price correctly
+  - **Acceptance**: All transaction database tests pass, CRUD operations work, computed fields are calculated correctly
+  - **Implementation**: Add transaction functions to `app/db/database.py`
+  - Implement create_transaction(), get_active_transaction(), update_transaction(), get_user_transactions()
+  - Add computed field calculations in get_user_transactions (diff, aggregates, diffDollar)
+  - Handle NULL sell_price in calculations
+  - _Leverage: app/db/database.py (existing CRUD patterns)_
+  - _Requirements: 4.6, 5.5-5.6, 6.3-6.7_
+
+- [ ] 9. Implement watchlist database functions
+  - **Test Specs**: Validate that watchlist CRUD operations work correctly
+  - **Test Location**: `tests/unit/test_database_watchlist.py`
+  - **Test Cases**:
+    - Test create_watchlist creates new watchlist entry with symbol
+    - Test get_watchlists returns all watchlist entries
+    - Test delete_watchlist removes entry by symbol
+    - Test delete_watchlist returns False when symbol not found
+    - Test delete_watchlist returns True when deletion succeeds
+  - **Acceptance**: All watchlist database tests pass, CRUD operations work correctly
+  - **Implementation**: Add watchlist functions to `app/db/database.py`
+  - Implement create_watchlist(), get_watchlists(), delete_watchlist()
+  - _Leverage: app/db/database.py (existing CRUD patterns)_
+  - _Requirements: 7.2-7.5_
+
+- [ ] 10. Implement log database functions
+  - **Test Specs**: Validate that log CRUD operations work correctly with JSON data storage and pagination
+  - **Test Location**: `tests/unit/test_database_log.py`
+  - **Test Cases**:
+    - Test create_log stores symbol, data (as JSON text), action correctly
+    - Test get_logs returns logs ordered by created_at DESC
+    - Test get_logs filters by symbol (LIKE search)
+    - Test get_logs supports pagination (limit, offset)
+    - Test get_logs returns total_count for pagination
+    - Test get_unique_log_symbols returns list of unique symbols
+    - Test data field is stored and retrieved as JSON text
+  - **Acceptance**: All log database tests pass, JSON storage works, pagination functions correctly
+  - **Implementation**: Add log functions to `app/db/database.py`
+  - Implement create_log(), get_logs(), get_unique_log_symbols()
+  - Handle JSON serialization/deserialization for data field
+  - Implement pagination with limit/offset
+  - _Leverage: app/db/database.py (existing CRUD patterns)_
+  - _Requirements: 8.1-8.7_
+
+- [ ] 11. Implement strategy database functions
+  - **Test Specs**: Validate that strategy CRUD operations work correctly with soft delete support
+  - **Test Location**: `tests/unit/test_database_strategy.py`
+  - **Test Cases**:
+    - Test create_strategy creates record with name and slug
+    - Test create_strategy auto-generates slug from name if not provided
+    - Test get_all_strategies returns all strategies including soft-deleted when include_deleted=True
+    - Test get_all_strategies excludes soft-deleted when include_deleted=False
+    - Test get_strategy_by_id retrieves strategy by ID
+    - Test get_strategy_by_id returns None when not found
+    - Test update_strategy updates name and/or slug
+    - Test soft_delete_strategy sets deleted_at timestamp
+    - Test soft_delete_strategy does not remove record from database
+  - **Acceptance**: All strategy database tests pass, soft delete works correctly, slug auto-generation works
+  - **Implementation**: Add strategy functions to `app/db/database.py`
+  - Implement create_strategy(), get_all_strategies(), get_strategy_by_id(), update_strategy(), soft_delete_strategy()
+  - Add slug auto-generation logic (slugify name)
+  - Handle soft delete with deleted_at timestamp
+  - _Leverage: app/db/database.py (existing CRUD patterns)_
+  - _Requirements: 9.1-9.6_
+
+- [ ] 12. Implement trade_strategy database functions
+  - **Test Specs**: Validate that trade_strategy CRUD operations work correctly with foreign key relationships and soft delete
+  - **Test Location**: `tests/unit/test_database_trade_strategy.py`
+  - **Test Cases**:
+    - Test create_trade_strategy creates record with symbol, strategy_id, timestamp
+    - Test create_trade_strategy defaults timestamp to '5m' if not provided
+    - Test get_trade_strategies returns all trade strategies including soft-deleted when include_deleted=True
+    - Test get_trade_strategies excludes soft-deleted when include_deleted=False
+    - Test get_trade_strategy_by_id retrieves trade strategy by ID
+    - Test get_trade_strategy_by_id returns None when not found
+    - Test update_trade_strategy updates symbol, strategy_id, and/or timestamp
+    - Test soft_delete_trade_strategy sets deleted_at timestamp
+    - Test foreign key constraint prevents creating trade_strategy with invalid strategy_id
+  - **Acceptance**: All trade_strategy database tests pass, foreign key relationships work, soft delete functions correctly
+  - **Implementation**: Add trade_strategy functions to `app/db/database.py`
+  - Implement create_trade_strategy(), get_trade_strategies(), get_trade_strategy_by_id(), update_trade_strategy(), soft_delete_trade_strategy()
+  - Handle default timestamp value ('5m')
+  - Handle soft delete with deleted_at timestamp
+  - _Leverage: app/db/database.py (existing CRUD patterns)_
+  - _Requirements: 10.1-10.7_
+
+- [ ] 13. Create order schemas (OrderCreate, OrderClose, TransactionResponse, OrderListResponse)
+  - **Test Specs**: Validate that order schemas enforce validation rules and serialize correctly
+  - **Test Location**: `tests/unit/test_order_schemas.py`
+  - **Test Cases**:
+    - Test OrderCreate validates symbol (required, max 10 chars)
+    - Test OrderCreate validates quantity (required, positive Decimal)
+    - Test OrderCreate rejects symbol exceeding 10 characters
+    - Test OrderCreate rejects negative quantity
+    - Test OrderCreate rejects zero quantity
+    - Test OrderClose validates symbol (required, max 10 chars)
+    - Test TransactionResponse includes all transaction fields with computed fields
+    - Test OrderListResponse includes orders list and unique_symbols
+    - Test Decimal fields maintain precision in serialization
+  - **Acceptance**: All order schema tests pass, validation rules are enforced, serialization works correctly
+  - **Implementation**: Create `app/schemas/order.py` with all order-related Pydantic models
+  - Define OrderCreate, OrderClose, TransactionResponse, OrderListResponse models
+  - Add Field validations for symbol (max_length=10) and quantity (gt=0)
+  - Include computed fields in TransactionResponse (diff, buyAggregate, sellAggregate, diffDollar)
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 4.2, 5.2, 6.6-6.7, 13.1-13.6_
+
+- [ ] 14. Create watchlist schemas (WatchlistCreate, WatchlistResponse, WatchlistListResponse)
+  - **Test Specs**: Validate that watchlist schemas enforce validation rules and serialize correctly
+  - **Test Location**: `tests/unit/test_watchlist_schemas.py`
+  - **Test Cases**:
+    - Test WatchlistCreate validates symbol (required, max 10 chars)
+    - Test WatchlistCreate rejects symbol exceeding 10 characters
+    - Test WatchlistResponse includes id, symbol, created_at
+    - Test WatchlistListResponse includes watchlists list and unique_symbols
+  - **Acceptance**: All watchlist schema tests pass, validation rules are enforced
+  - **Implementation**: Create `app/schemas/watchlist.py` with watchlist-related Pydantic models
+  - Define WatchlistCreate, WatchlistResponse, WatchlistListResponse models
+  - Add Field validation for symbol (max_length=10)
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 7.2, 13.1_
+
+- [ ] 15. Create log schemas (LogCreate, LogResponse, LogListResponse)
+  - **Test Specs**: Validate that log schemas enforce validation rules and handle JSON data correctly
+  - **Test Location**: `tests/unit/test_log_schemas.py`
+  - **Test Cases**:
+    - Test LogCreate validates symbol (required), data (required, dict), action (required)
+    - Test LogResponse includes id, symbol, data (parsed JSON), action, created_at, updated_at
+    - Test LogListResponse includes logs list, unique_symbols, and pagination metadata
+    - Test data field is properly serialized/deserialized as JSON
+  - **Acceptance**: All log schema tests pass, JSON data handling works correctly
+  - **Implementation**: Create `app/schemas/log.py` with log-related Pydantic models
+  - Define LogCreate, LogResponse, LogListResponse models
+  - Handle JSON serialization for data field
+  - Include pagination metadata in LogListResponse
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 8.1, 8.6-8.7, 13.1_
+
+- [ ] 16. Create strategy schemas (StrategyCreate, StrategyUpdate, StrategyResponse, StrategyListResponse)
+  - **Test Specs**: Validate that strategy schemas enforce validation rules and handle optional fields
+  - **Test Location**: `tests/unit/test_strategy_schemas.py`
+  - **Test Cases**:
+    - Test StrategyCreate validates name (required), slug (optional)
+    - Test StrategyUpdate allows optional name and slug fields
+    - Test StrategyResponse includes all strategy fields including deleted_at
+    - Test StrategyListResponse includes strategies list
+  - **Acceptance**: All strategy schema tests pass, optional fields work correctly
+  - **Implementation**: Create `app/schemas/strategy.py` with strategy-related Pydantic models
+  - Define StrategyCreate, StrategyUpdate, StrategyResponse, StrategyListResponse models
+  - Make slug optional in StrategyCreate
+  - Make all fields optional in StrategyUpdate
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 9.2-9.4, 13.1_
+
+- [ ] 17. Create trade_strategy schemas (TradeStrategyCreate, TradeStrategyUpdate, TradeStrategyResponse, TradeStrategyListResponse)
+  - **Test Specs**: Validate that trade_strategy schemas enforce validation rules including symbol length and foreign key references
+  - **Test Location**: `tests/unit/test_trade_strategy_schemas.py`
+  - **Test Cases**:
+    - Test TradeStrategyCreate validates symbol (required, max 15 chars), strategy_id (required), timestamp (optional, default '5m')
+    - Test TradeStrategyCreate rejects symbol exceeding 15 characters
+    - Test TradeStrategyUpdate allows optional symbol, strategy_id, and timestamp
+    - Test TradeStrategyResponse includes all trade_strategy fields
+    - Test TradeStrategyListResponse includes trade_strategies list
+  - **Acceptance**: All trade_strategy schema tests pass, validation rules including symbol length (15 chars) are enforced
+  - **Implementation**: Create `app/schemas/trade_strategy.py` with trade_strategy-related Pydantic models
+  - Define TradeStrategyCreate, TradeStrategyUpdate, TradeStrategyResponse, TradeStrategyListResponse models
+  - Add Field validation for symbol (max_length=15)
+  - Set default timestamp to '5m' in TradeStrategyCreate
+  - _Leverage: app/schemas/user.py (existing schema patterns)_
+  - _Requirements: 10.2, 13.1_
+
+- [ ] 18. Implement order router with POST /order endpoint (buy order creation)
+  - **Test Specs**: Validate that buy order creation endpoint works correctly with authentication, validation, balance checks, and atomic transactions
+  - **Test Location**: `tests/integration/test_order_endpoints.py`
+  - **Test Cases**:
+    - Test POST /order creates order successfully with valid inputs
+    - Test POST /order requires authentication (returns 401 without token)
+    - Test POST /order validates symbol (max 10 chars) and quantity (positive)
+    - Test POST /order fetches current price from Binance service
+    - Test POST /order returns 400 with "insufficient balance" when balance is insufficient
+    - Test POST /order returns 400 with "rejection" when duplicate active order exists
+    - Test POST /order creates transaction and updates balance atomically
+    - Test POST /order rolls back on failure (transaction atomicity)
+    - Test POST /order returns created transaction in response
+    - Test POST /order handles Binance API errors (503, connection failures)
+  - **Acceptance**: All order creation endpoint tests pass, authentication works, validation enforces rules, atomicity is maintained
+  - **Implementation**: Create `app/routers/order.py` with POST /order endpoint
+  - Implement order creation logic with authentication dependency
+  - Add symbol and quantity validation
+  - Integrate Binance service for price fetching
+  - Check user balance and duplicate orders
+  - Use database transaction for atomicity (create_transaction + update_user_balance)
+  - Return StandardResponse with TransactionResponse
+  - Handle all error scenarios with appropriate HTTP status codes
+  - _Leverage: app/routers/auth.py (router pattern, authentication dependency), app/services/binance.py, app/db/database.py, app/core/constants.py_
+  - _Requirements: 4.1-4.10, 12.1-12.7, 14.1-14.5_
+
+- [ ] 19. Implement order router with DELETE /order endpoint (sell order closing)
+  - **Test Specs**: Validate that sell order closing endpoint works correctly with authentication, validation, and atomic transactions
+  - **Test Location**: `tests/integration/test_order_endpoints.py`
+  - **Test Cases**:
+    - Test DELETE /order closes order successfully with valid symbol
+    - Test DELETE /order requires authentication (returns 401 without token)
+    - Test DELETE /order validates symbol (max 10 chars)
+    - Test DELETE /order returns 400 with "order not found" when no active order exists
+    - Test DELETE /order fetches current price from Binance service
+    - Test DELETE /order updates transaction and balance atomically
+    - Test DELETE /order rolls back on failure (transaction atomicity)
+    - Test DELETE /order returns success message "sell order complete"
+    - Test DELETE /order handles Binance API errors
+  - **Acceptance**: All order closing endpoint tests pass, authentication works, atomicity is maintained
+  - **Implementation**: Add DELETE /order endpoint to `app/routers/order.py`
+  - Implement order closing logic with authentication dependency
+  - Find active transaction for user and symbol
+  - Integrate Binance service for price fetching
+  - Use database transaction for atomicity (update_transaction + update_user_balance)
+  - Return StandardResponse with success message
+  - Handle all error scenarios
+  - _Leverage: app/routers/order.py (existing router), app/services/binance.py, app/db/database.py, app/core/constants.py_
+  - _Requirements: 5.1-5.10, 12.1-12.7, 14.1-14.5_
+
+- [ ] 20. Implement order router with GET /order endpoint (order listing)
+  - **Test Specs**: Validate that order listing endpoint works correctly with authentication, filtering, and computed fields
+  - **Test Location**: `tests/integration/test_order_endpoints.py`
+  - **Test Cases**:
+    - Test GET /order returns all orders for authenticated user
+    - Test GET /order requires authentication (returns 401 without token)
+    - Test GET /order filters by active_only=True query parameter
+    - Test GET /order filters by symbol query parameter
+    - Test GET /order orders results by status ASC, created_at DESC
+    - Test GET /order includes computed fields (diff, buyAggregate, sellAggregate, diffDollar)
+    - Test GET /order includes unique_symbols list in response
+    - Test GET /order handles NULL sell_price in computed fields
+  - **Acceptance**: All order listing endpoint tests pass, filtering works, computed fields are calculated correctly
+  - **Implementation**: Add GET /order endpoint to `app/routers/order.py`
+  - Implement order listing logic with authentication dependency
+  - Add query parameter support (active_only, symbol)
+  - Call get_user_transactions with filters
+  - Calculate computed fields for each transaction
+  - Extract unique symbols list
+  - Return StandardResponse with OrderListResponse
+  - _Leverage: app/routers/order.py (existing router), app/db/database.py_
+  - _Requirements: 6.1-6.8, 12.1-12.7_
+
+- [ ] 21. Implement watchlist router with GET, POST, DELETE endpoints
+  - **Test Specs**: Validate that watchlist endpoints work correctly with authentication and CRUD operations
+  - **Test Location**: `tests/integration/test_watchlist_endpoints.py`
+  - **Test Cases**:
+    - Test GET /watchlist returns all watchlists
+    - Test GET /watchlist requires authentication (returns 401 without token)
+    - Test POST /watchlist creates watchlist entry successfully
+    - Test POST /watchlist validates symbol (max 10 chars)
+    - Test DELETE /watchlist/{symbol} deletes watchlist entry successfully
+    - Test DELETE /watchlist/{symbol} returns 404 when symbol not found
+    - Test all endpoints require authentication
+  - **Acceptance**: All watchlist endpoint tests pass, CRUD operations work, authentication is enforced
+  - **Implementation**: Create `app/routers/watchlist.py` with watchlist endpoints
+  - Implement GET /watchlist, POST /watchlist, DELETE /watchlist/{symbol} endpoints
+  - Add authentication dependency to all endpoints
+  - Integrate watchlist database functions
+  - Return StandardResponse with appropriate response models
+  - Handle error scenarios
+  - _Leverage: app/routers/auth.py (router pattern), app/db/database.py, app/schemas/watchlist.py_
+  - _Requirements: 7.1-7.6, 12.1-12.7_
+
+- [ ] 22. Implement log router with POST and GET endpoints
+  - **Test Specs**: Validate that log endpoints work correctly with authentication, JSON data handling, and pagination
+  - **Test Location**: `tests/integration/test_log_endpoints.py`
+  - **Test Cases**:
+    - Test POST /log creates log entry successfully
+    - Test POST /log validates symbol, data (dict), action (required)
+    - Test POST /log stores data as JSON text in database
+    - Test GET /log returns logs ordered by created_at DESC
+    - Test GET /log filters by symbol query parameter (LIKE search)
+    - Test GET /log supports pagination (limit, offset query parameters)
+    - Test GET /log includes unique_symbols list in response
+    - Test GET /log parses data field as JSON in response
+    - Test all endpoints require authentication
+  - **Acceptance**: All log endpoint tests pass, JSON handling works, pagination functions correctly
+  - **Implementation**: Create `app/routers/log.py` with log endpoints
+  - Implement POST /log, GET /log endpoints
+  - Add authentication dependency to all endpoints
+  - Integrate log database functions
+  - Handle JSON serialization/deserialization for data field
+  - Implement pagination support
+  - Return StandardResponse with appropriate response models
+  - _Leverage: app/routers/auth.py (router pattern), app/db/database.py, app/schemas/log.py, app/core/constants.py_
+  - _Requirements: 8.1-8.8, 12.1-12.7_
+
+- [ ] 23. Implement strategy router with GET, POST, PUT, DELETE endpoints
+  - **Test Specs**: Validate that strategy endpoints work correctly with authentication, CRUD operations, and soft delete
+  - **Test Location**: `tests/integration/test_strategy_endpoints.py`
+  - **Test Cases**:
+    - Test GET /strategy returns all strategies including soft-deleted
+    - Test POST /strategy creates strategy with name and optional slug
+    - Test POST /strategy auto-generates slug from name if not provided
+    - Test PUT /strategy/{strategy_id} updates strategy fields
+    - Test PUT /strategy/{strategy_id} returns 404 when strategy not found
+    - Test DELETE /strategy/{strategy_id} soft deletes strategy (sets deleted_at)
+    - Test DELETE /strategy/{strategy_id} does not remove record from database
+    - Test all endpoints require authentication
+  - **Acceptance**: All strategy endpoint tests pass, CRUD operations work, soft delete functions correctly
+  - **Implementation**: Create `app/routers/strategy.py` with strategy endpoints
+  - Implement GET /strategy, POST /strategy, PUT /strategy/{strategy_id}, DELETE /strategy/{strategy_id} endpoints
+  - Add authentication dependency to all endpoints
+  - Integrate strategy database functions
+  - Implement slug auto-generation logic
+  - Return StandardResponse with appropriate response models
+  - Handle error scenarios
+  - _Leverage: app/routers/auth.py (router pattern), app/db/database.py, app/schemas/strategy.py_
+  - _Requirements: 9.1-9.7, 12.1-12.7_
+
+- [ ] 24. Implement trade_strategy router with GET, POST, PUT, DELETE endpoints
+  - **Test Specs**: Validate that trade_strategy endpoints work correctly with authentication, CRUD operations, foreign key validation, and soft delete
+  - **Test Location**: `tests/integration/test_trade_strategy_endpoints.py`
+  - **Test Cases**:
+    - Test GET /trade-strategy returns all trade strategies including soft-deleted
+    - Test POST /trade-strategy creates trade strategy with symbol, strategy_id, optional timestamp
+    - Test POST /trade-strategy defaults timestamp to '5m' if not provided
+    - Test POST /trade-strategy validates symbol (max 15 chars)
+    - Test POST /trade-strategy returns 400 when strategy_id does not exist (foreign key constraint)
+    - Test PUT /trade-strategy/{trade_strategy_id} updates trade strategy fields
+    - Test PUT /trade-strategy/{trade_strategy_id} returns 404 when trade_strategy not found
+    - Test DELETE /trade-strategy/{trade_strategy_id} soft deletes trade strategy
+    - Test all endpoints require authentication
+  - **Acceptance**: All trade_strategy endpoint tests pass, CRUD operations work, foreign key validation works, soft delete functions correctly
+  - **Implementation**: Create `app/routers/trade_strategy.py` with trade_strategy endpoints
+  - Implement GET /trade-strategy, POST /trade-strategy, PUT /trade-strategy/{trade_strategy_id}, DELETE /trade-strategy/{trade_strategy_id} endpoints
+  - Add authentication dependency to all endpoints
+  - Integrate trade_strategy database functions
+  - Validate foreign key relationships
+  - Return StandardResponse with appropriate response models
+  - Handle error scenarios
+  - _Leverage: app/routers/auth.py (router pattern), app/db/database.py, app/schemas/trade_strategy.py_
+  - _Requirements: 10.1-10.7, 12.1-12.7, 13.1_
+
+- [ ] 25. Mount all new routers in main.py
+  - **Test Specs**: Validate that all new routers are properly mounted and accessible via API
+  - **Test Location**: `tests/integration/test_router_mounting.py`
+  - **Test Cases**:
+    - Test order router is mounted and accessible at /order endpoints
+    - Test watchlist router is mounted and accessible at /watchlist endpoints
+    - Test log router is mounted and accessible at /log endpoints
+    - Test strategy router is mounted and accessible at /strategy endpoints
+    - Test trade_strategy router is mounted and accessible at /trade-strategy endpoints
+    - Test all routers appear in OpenAPI documentation (/docs)
+    - Test router tags are properly set for API documentation grouping
+  - **Acceptance**: All router mounting tests pass, all endpoints are accessible, OpenAPI docs include all routers
+  - **Implementation**: Update `app/main.py` to mount all new routers
+  - Import all new routers (order, watchlist, log, strategy, trade_strategy)
+  - Mount routers using app.include_router() with appropriate prefixes
+  - Ensure routers are mounted after existing auth router
+  - Verify router tags are set correctly
+  - _Leverage: app/main.py (existing router mounting pattern)_
+  - _Requirements: All router requirements_
+
+- [ ] 26. Implement pandas DataFrame conversion helpers
+  - **Test Specs**: Validate that asyncpg records can be converted to pandas DataFrames with proper type handling
+  - **Test Location**: `tests/unit/test_pandas_helpers.py`
+  - **Test Cases**:
+    - Test records_to_dataframe converts list of asyncpg.Record to DataFrame
+    - Test records_to_dataframe handles datetime fields correctly
+    - Test records_to_dataframe handles Decimal fields correctly (converts to float)
+    - Test records_to_dataframe handles NULL values correctly
+    - Test query_to_dataframe executes query and returns DataFrame
+    - Test query_to_dataframe handles query parameters correctly
+    - Test query_to_dataframe handles empty result sets
+  - **Acceptance**: All pandas helper tests pass, DataFrame conversion works correctly for all data types
+  - **Implementation**: Add pandas helper functions to `app/db/database.py`
+  - Implement records_to_dataframe() function
+  - Implement query_to_dataframe() function
+  - Handle datetime and Decimal type conversions
+  - Make pandas an optional dependency (handle ImportError gracefully)
+  - _Leverage: app/db/database.py (existing database patterns)_
+  - _Requirements: 15.6-15.7_
+
+- [ ] 27. Update get_user_by_email to return name and balance fields
+  - **Test Specs**: Validate that get_user_by_email returns extended user fields including name and balance
+  - **Test Location**: `tests/unit/test_database_user.py`
+  - **Test Cases**:
+    - Test get_user_by_email returns name field
+    - Test get_user_by_email returns balance field
+    - Test get_user_by_email maintains backward compatibility with existing code
+    - Test balance field is returned as Decimal type
+  - **Acceptance**: All get_user_by_email tests pass, name and balance are included in results
+  - **Implementation**: Update `get_user_by_email()` function in `app/db/database.py`
+  - Modify SELECT query to include name and balance fields
+  - Update RETURNING clause or SELECT statement
+  - Ensure backward compatibility (existing code still works)
+  - _Leverage: app/db/database.py (get_user_by_email function)_
+  - _Requirements: 2.3, 3.3_
+
+- [ ] 28. Update auth router to handle name field in user registration
+  - **Test Specs**: Validate that user registration accepts and stores name field correctly
+  - **Test Location**: `tests/integration/test_auth_endpoints.py`
+  - **Test Cases**:
+    - Test POST /auth/register accepts name field in request
+    - Test POST /auth/register stores name in database
+    - Test POST /auth/register returns name in response
+    - Test POST /auth/register returns 422 when name is missing
+    - Test POST /auth/register initializes balance to 0
+  - **Acceptance**: All registration tests pass, name field is required and stored correctly
+  - **Implementation**: Update `register_user()` function in `app/routers/auth.py`
+  - Update create_user() call to pass name from UserCreate schema
+  - Update _serialize_user() helper to include name and balance fields
+  - Ensure UserResponse includes name and balance
+  - _Leverage: app/routers/auth.py (register_user function), app/schemas/user.py_
+  - _Requirements: 2.1-2.4_
+
+- [ ] 29. Update auth router profile endpoint to return name and balance
+  - **Test Specs**: Validate that profile endpoint returns extended user information including name and balance
+  - **Test Location**: `tests/integration/test_auth_endpoints.py`
+  - **Test Cases**:
+    - Test GET /auth/profile returns name field
+    - Test GET /auth/profile returns balance field
+    - Test balance field is returned as Decimal type
+  - **Acceptance**: All profile endpoint tests pass, name and balance are included in response
+  - **Implementation**: Update `get_profile()` function in `app/routers/auth.py`
+  - Update _serialize_user() helper to include name and balance (already done in task 28)
+  - Ensure UserResponse schema includes name and balance fields
+  - _Leverage: app/routers/auth.py (get_profile function), app/schemas/user.py_
+  - _Requirements: 2.3_

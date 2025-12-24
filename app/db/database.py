@@ -1,4 +1,5 @@
 import asyncpg
+from decimal import Decimal
 from app.core.config import settings
 
 # Global database pool
@@ -27,46 +28,53 @@ async def get_db_pool():
 
 
 async def init_db():
-    """Ensure required database tables exist"""
-    pool = await get_db_pool()
-
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT timezone('utc', now())
-            );
-            """
-        )
+    """Initialize database connection pool.
+    
+    Note: Schema migrations are handled by Flyway.
+    Run migrations with: ./scripts/run_migrations.sh
+    """
+    # Just ensure the pool is created - migrations are handled by Flyway
+    await get_db_pool()
 
 
-async def create_user(email: str, password_hash: str):
-    """Insert a new user and return the created record"""
+async def create_user(email: str, password_hash: str, name: str):
+    """Insert a new user and return the created record
+    
+    Args:
+        email: User's email address
+        password_hash: Hashed password
+        name: User's full name
+        
+    Returns:
+        asyncpg.Record with id, email, name, balance, created_at
+    """
     pool = await get_db_pool()
 
     async with pool.acquire() as conn:
         return await conn.fetchrow(
             """
-            INSERT INTO users (email, password)
-            VALUES ($1, $2)
-            RETURNING id, email, created_at;
+            INSERT INTO users (email, password, name, balance)
+            VALUES ($1, $2, $3, 0.00000000000000000000)
+            RETURNING id, email, name, balance, created_at;
             """,
             email,
-            password_hash
+            password_hash,
+            name
         )
 
 
 async def get_user_by_email(email: str):
-    """Fetch a user record by email"""
+    """Fetch a user record by email
+    
+    Returns:
+        asyncpg.Record with id, email, password, name, balance, created_at
+    """
     pool = await get_db_pool()
 
     async with pool.acquire() as conn:
         return await conn.fetchrow(
             """
-            SELECT id, email, password, created_at
+            SELECT id, email, password, name, balance, created_at
             FROM users
             WHERE email = $1;
             """,
@@ -88,6 +96,76 @@ async def user_exists(email: str) -> bool:
             email
         )
         return result is not None
+
+
+async def update_user_balance(user_id: int, amount: Decimal, operation: str) -> asyncpg.Record:
+    """Update user balance atomically with add or subtract operation
+    
+    Args:
+        user_id: User ID to update
+        amount: Amount to add or subtract (must be positive)
+        operation: Either "add" or "subtract"
+        
+    Returns:
+        asyncpg.Record with id, email, name, balance, created_at, updated_at
+        
+    Raises:
+        ValueError: If operation is not "add" or "subtract"
+    """
+    if operation not in ("add", "subtract"):
+        raise ValueError(f"Operation must be 'add' or 'subtract', got '{operation}'")
+    
+    pool = await get_db_pool()
+    
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if operation == "add":
+                return await conn.fetchrow(
+                    """
+                    UPDATE users
+                    SET balance = balance + $1,
+                        updated_at = timezone('utc', now())
+                    WHERE id = $2
+                    RETURNING id, email, name, balance, created_at, updated_at;
+                    """,
+                    amount,
+                    user_id
+                )
+            else:  # subtract
+                return await conn.fetchrow(
+                    """
+                    UPDATE users
+                    SET balance = balance - $1,
+                        updated_at = timezone('utc', now())
+                    WHERE id = $2
+                    RETURNING id, email, name, balance, created_at, updated_at;
+                    """,
+                    amount,
+                    user_id
+                )
+
+
+async def get_user_with_balance(user_id: int) -> asyncpg.Record | None:
+    """Fetch a user record by ID with balance field
+    
+    Args:
+        user_id: User ID to fetch
+        
+    Returns:
+        asyncpg.Record with id, email, password, name, balance, created_at, updated_at
+        or None if user not found
+    """
+    pool = await get_db_pool()
+    
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(
+            """
+            SELECT id, email, password, name, balance, created_at, updated_at
+            FROM users
+            WHERE id = $1;
+            """,
+            user_id
+        )
 
 
 async def close_db_pool():

@@ -1,0 +1,241 @@
+openapi: 3.0.3
+info:
+  title: Newsly API
+  description: A FastAPI application with PostgreSQL connection
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /:
+    get:
+      summary: Root endpoint
+      operationId: getRoot
+      tags:
+        - System
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseObject"
+  /health:
+    get:
+      summary: Health check endpoint to verify API and database connectivity
+      operationId: getHealth
+      tags:
+        - System
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseHealth"
+        "503":
+          description: Service dependency unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseObject"
+  /auth/register:
+    post:
+      summary: Create a new user account with hashed password
+      operationId: postAuthRegister
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseUser"
+        "400":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseObject"
+  /auth/login:
+    post:
+      summary: Authenticate a user with email and password
+      operationId: postAuthLogin
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLogin"
+      responses:
+        "200":
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseLogin"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseObject"
+  /auth/profile:
+    get:
+      summary: Return the authenticated user's profile details
+      operationId: getAuthProfile
+      tags:
+        - Auth
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user's profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponseObject"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    StandardResponseBase:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          default: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          nullable: true
+      required:
+        - status
+    StandardResponseObject:
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              additionalProperties: true
+    StandardResponseHealth:
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: false
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                database:
+                  type: string
+                message:
+                  type: string
+    StandardResponseUser:
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/UserResponse"
+              nullable: false
+    StandardResponseLogin:
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LoginResponse"
+              nullable: false
+    UserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+      required:
+        - email
+        - password
+    UserLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 72
+      required:
+        - email
+        - password
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - created_at
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum:
+            - bearer
+          default: bearer
+      required:
+        - access_token
+        - token_type
+    LoginResponse:
+      allOf:
+        - $ref: "#/components/schemas/TokenResponse"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/UserResponse"
+          required:
+            - user

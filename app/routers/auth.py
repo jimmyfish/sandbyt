@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 
@@ -17,6 +19,8 @@ def _serialize_user(record) -> UserResponse:
         {
             "id": record["id"],
             "email": record["email"],
+            "name": record.get("name", ""),  # Default to empty string if not present (backward compatibility)
+            "balance": record.get("balance", Decimal("0")),  # Default to 0 if not present (backward compatibility)
             "created_at": record["created_at"],
         }
     )
@@ -34,7 +38,7 @@ async def register_user(payload: UserCreate):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
     password_hash = password_context.hash(payload.password)
-    record = await create_user(payload.email, password_hash)
+    record = await create_user(payload.email, password_hash, payload.name)
 
     return StandardResponse(data=_serialize_user(record))
 

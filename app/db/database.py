@@ -37,8 +37,16 @@ async def init_db():
                 id SERIAL PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
+                balance NUMERIC(20, 8) NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT timezone('utc', now())
             );
+            """
+        )
+        # Backward-compatible migration: add balance to existing installs.
+        await conn.execute(
+            """
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS balance NUMERIC(20, 8) NOT NULL DEFAULT 0;
             """
         )
 
@@ -52,7 +60,7 @@ async def create_user(email: str, password_hash: str):
             """
             INSERT INTO users (email, password)
             VALUES ($1, $2)
-            RETURNING id, email, created_at;
+            RETURNING id, email, balance, created_at;
             """,
             email,
             password_hash
@@ -66,7 +74,7 @@ async def get_user_by_email(email: str):
     async with pool.acquire() as conn:
         return await conn.fetchrow(
             """
-            SELECT id, email, password, created_at
+            SELECT id, email, password, balance, created_at
             FROM users
             WHERE email = $1;
             """,

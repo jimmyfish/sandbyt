@@ -14,6 +14,7 @@ def _serialize_user(record) -> UserResponse:
         {
             "id": record["id"],
             "email": record["email"],
+            "balance": str(record["balance"]),
             "created_at": record["created_at"],
         }
     )

@@ -646,10 +646,10 @@ paths:
         - name: include_deleted
           in: query
           required: false
+          description: Include soft-deleted strategies in results (default: True)
           schema:
             type: boolean
             default: true
-          description: Include soft-deleted strategies in results (default: True)
       responses:
         "200":
           description: Success
@@ -903,10 +903,10 @@ paths:
         - name: include_deleted
           in: query
           required: false
+          description: Include soft-deleted trade strategies in results (default: True)
           schema:
             type: boolean
             default: true
-          description: Include soft-deleted trade strategies in results (default: True)
       responses:
         "200":
           description: Success

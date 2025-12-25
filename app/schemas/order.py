@@ -27,31 +27,38 @@ class OrderClose(BaseModel):
 
 
 class TransactionResponse(BaseModel):
-    """Schema for transaction/order response with computed fields."""
+    """Schema for transaction/order response with computed fields.
+    
+    All decimal fields are represented as strings to preserve precision
+    in JSON serialization, consistent with UserResponse.balance pattern.
+    """
     id: int
     symbol: str
-    buy_price: Decimal
-    sell_price: Optional[Decimal] = None
+    buy_price: str = Field(description="Buy price as string to preserve precision")
+    sell_price: Optional[str] = Field(
+        default=None,
+        description="Sell price as string (NULL if not sold)"
+    )
     status: int
-    quantity: Decimal
+    quantity: str = Field(description="Quantity as string to preserve precision")
     user_id: int
     created_at: datetime
     updated_at: datetime
     # Computed fields
-    diff: Optional[Decimal] = Field(
+    diff: Optional[str] = Field(
         default=None,
-        description="sell_price - buy_price (NULL if sell_price is NULL)"
+        description="sell_price - buy_price as string (NULL if sell_price is NULL)"
     )
-    buyAggregate: Decimal = Field(
-        description="buy_price * quantity"
+    buyAggregate: str = Field(
+        description="buy_price * quantity as string"
     )
-    sellAggregate: Optional[Decimal] = Field(
+    sellAggregate: Optional[str] = Field(
         default=None,
-        description="sell_price * quantity (NULL if sell_price is NULL)"
+        description="sell_price * quantity as string (NULL if sell_price is NULL)"
     )
-    diffDollar: Decimal = Field(
-        default=Decimal("0"),
-        description="Equity if status=2, else 0"
+    diffDollar: str = Field(
+        default="0",
+        description="Equity as string if status=2, else '0'"
     )
 
     model_config = ConfigDict(

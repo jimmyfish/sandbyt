@@ -220,7 +220,10 @@ async def test_get_order_orders_results_by_status_asc_created_at_desc(test_user,
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_order_includes_computed_fields(test_user, authenticated_async_client):
-    """Test GET /order includes computed fields (diff, buyAggregate, sellAggregate, diffDollar)."""
+    """Test GET /order includes computed fields (diff, buyAggregate, sellAggregate, diffDollar).
+    
+    All decimal fields are now strings with 20 decimal places to preserve precision.
+    """
     user_id = test_user["id"]
     
     # Create a transaction and close it
@@ -237,18 +240,18 @@ async def test_get_order_includes_computed_fields(test_user, authenticated_async
     closed_order = next((o for o in orders if o["status"] == 2), None)
     assert closed_order is not None
     
-    # Verify computed fields
+    # Verify computed fields (all strings with 20 decimal places)
     assert "diff" in closed_order
-    assert closed_order["diff"] == "1000.00"  # 51000 - 50000
+    assert closed_order["diff"] == "1000.00000000000000000000"  # 51000 - 50000
     
     assert "buyAggregate" in closed_order
-    assert closed_order["buyAggregate"] == "5000.00"  # 50000 * 0.1
+    assert closed_order["buyAggregate"] == "5000.00000000000000000000"  # 50000 * 0.1
     
     assert "sellAggregate" in closed_order
-    assert closed_order["sellAggregate"] == "5100.00"  # 51000 * 0.1
+    assert closed_order["sellAggregate"] == "5100.00000000000000000000"  # 51000 * 0.1
     
     assert "diffDollar" in closed_order
-    assert closed_order["diffDollar"] == "100.00"  # (51000 - 50000) * 0.1
+    assert closed_order["diffDollar"] == "100.00000000000000000000"  # (51000 - 50000) * 0.1
     
     # Cleanup
     pool = await get_db_pool()
@@ -289,7 +292,11 @@ async def test_get_order_includes_unique_symbols_list(test_user, authenticated_a
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_get_order_handles_null_sell_price_in_computed_fields(test_user, authenticated_async_client):
-    """Test GET /order handles NULL sell_price in computed fields."""
+    """Test GET /order handles NULL sell_price in computed fields.
+    
+    All decimal fields are now strings with 20 decimal places to preserve precision.
+    Note: response_model_exclude_none=True means None fields are omitted from response.
+    """
     user_id = test_user["id"]
     
     # Create an active transaction (no sell_price)
@@ -306,12 +313,13 @@ async def test_get_order_handles_null_sell_price_in_computed_fields(test_user, a
     assert active_order is not None
     assert active_order["status"] == 1
     
-    # Verify computed fields handle NULL sell_price
-    assert active_order["sell_price"] is None
-    assert active_order["diff"] is None  # diff should be None when sell_price is NULL
-    assert active_order["buyAggregate"] == "5000.00"  # buyAggregate should still be calculated
-    assert active_order["sellAggregate"] is None  # sellAggregate should be None
-    assert active_order["diffDollar"] == "0"  # diffDollar should be 0 for active orders
+    # Verify computed fields handle NULL sell_price (strings with 20 decimal places)
+    # Note: response_model_exclude_none=True means None values are excluded from response
+    assert active_order.get("sell_price") is None  # Not present or None
+    assert active_order.get("diff") is None  # diff should be None when sell_price is NULL
+    assert active_order["buyAggregate"] == "5000.00000000000000000000"  # buyAggregate should still be calculated
+    assert active_order.get("sellAggregate") is None  # sellAggregate should be None
+    assert active_order["diffDollar"] == "0.00000000000000000000"  # diffDollar should be "0" for active orders
     
     # Cleanup
     pool = await get_db_pool()

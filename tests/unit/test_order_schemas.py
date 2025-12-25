@@ -99,33 +99,40 @@ def test_order_close_rejects_symbol_exceeding_10_characters():
 
 
 def test_transaction_response_includes_all_transaction_fields():
-    """Test TransactionResponse includes all transaction fields with computed fields."""
+    """Test TransactionResponse includes all transaction fields with computed fields.
+    
+    All decimal fields are now strings to preserve precision in JSON serialization,
+    consistent with UserResponse.balance pattern.
+    """
     transaction = TransactionResponse(
         id=1,
         symbol="BTCUSDT",
-        buy_price=Decimal("50000.00"),
-        sell_price=Decimal("51000.00"),
+        buy_price="50000.00000000000000000000",
+        sell_price="51000.00000000000000000000",
         status=2,
-        quantity=Decimal("0.1"),
+        quantity="0.10000000000000000000",
         user_id=1,
         created_at=datetime.now(),
         updated_at=datetime.now(),
-        diff=Decimal("1000.00"),
-        buyAggregate=Decimal("5000.00"),
-        sellAggregate=Decimal("5100.00"),
-        diffDollar=Decimal("100.00")
+        diff="1000.00000000000000000000",
+        buyAggregate="5000.00000000000000000000",
+        sellAggregate="5100.00000000000000000000",
+        diffDollar="100.00000000000000000000"
     )
     
     assert transaction.id == 1
     assert transaction.symbol == "BTCUSDT"
-    assert transaction.buy_price == Decimal("50000.00")
-    assert transaction.sell_price == Decimal("51000.00")
+    assert transaction.buy_price == "50000.00000000000000000000"
+    assert transaction.sell_price == "51000.00000000000000000000"
     assert transaction.status == 2
-    assert transaction.quantity == Decimal("0.1")
-    assert transaction.diff == Decimal("1000.00")
-    assert transaction.buyAggregate == Decimal("5000.00")
-    assert transaction.sellAggregate == Decimal("5100.00")
-    assert transaction.diffDollar == Decimal("100.00")
+    assert transaction.quantity == "0.10000000000000000000"
+    assert transaction.diff == "1000.00000000000000000000"
+    assert transaction.buyAggregate == "5000.00000000000000000000"
+    assert transaction.sellAggregate == "5100.00000000000000000000"
+    assert transaction.diffDollar == "100.00000000000000000000"
+    # Verify all decimal fields are strings
+    assert isinstance(transaction.buy_price, str)
+    assert isinstance(transaction.quantity, str)
 
 
 def test_transaction_response_handles_null_sell_price():
@@ -133,45 +140,48 @@ def test_transaction_response_handles_null_sell_price():
     transaction = TransactionResponse(
         id=1,
         symbol="BTCUSDT",
-        buy_price=Decimal("50000.00"),
+        buy_price="50000.00000000000000000000",
         sell_price=None,
         status=1,
-        quantity=Decimal("0.1"),
+        quantity="0.10000000000000000000",
         user_id=1,
         created_at=datetime.now(),
         updated_at=datetime.now(),
         diff=None,
-        buyAggregate=Decimal("5000.00"),
+        buyAggregate="5000.00000000000000000000",
         sellAggregate=None,
-        diffDollar=Decimal("0")
+        diffDollar="0.00000000000000000000"
     )
     
     assert transaction.sell_price is None
     assert transaction.diff is None
     assert transaction.sellAggregate is None
-    assert transaction.diffDollar == Decimal("0")
+    assert transaction.diffDollar == "0.00000000000000000000"
 
 
-def test_transaction_response_decimal_fields_maintain_precision():
-    """Test Decimal fields maintain precision in serialization."""
-    high_precision = Decimal("50000.12345678901234567890")
+def test_transaction_response_string_fields_maintain_precision():
+    """Test string fields maintain precision in serialization.
+    
+    All decimal fields are now strings to preserve precision in JSON serialization.
+    """
+    high_precision = "50000.12345678901234567890"
     transaction = TransactionResponse(
         id=1,
         symbol="BTCUSDT",
         buy_price=high_precision,
         sell_price=None,
         status=1,
-        quantity=Decimal("0.12345678901234567890"),
+        quantity="0.12345678901234567890",
         user_id=1,
         created_at=datetime.now(),
         updated_at=datetime.now(),
-        buyAggregate=Decimal("6172.83950617283950617290"),
-        diffDollar=Decimal("0")
+        buyAggregate="6172.83950617283950617290",
+        diffDollar="0.00000000000000000000"
     )
     
     assert transaction.buy_price == high_precision
-    assert isinstance(transaction.buy_price, Decimal)
-    assert isinstance(transaction.quantity, Decimal)
+    assert isinstance(transaction.buy_price, str)
+    assert isinstance(transaction.quantity, str)
 
 
 def test_order_list_response_includes_orders_list():
@@ -179,29 +189,29 @@ def test_order_list_response_includes_orders_list():
     transaction1 = TransactionResponse(
         id=1,
         symbol="BTCUSDT",
-        buy_price=Decimal("50000.00"),
+        buy_price="50000.00000000000000000000",
         sell_price=None,
         status=1,
-        quantity=Decimal("0.1"),
+        quantity="0.10000000000000000000",
         user_id=1,
         created_at=datetime.now(),
         updated_at=datetime.now(),
-        buyAggregate=Decimal("5000.00"),
-        diffDollar=Decimal("0")
+        buyAggregate="5000.00000000000000000000",
+        diffDollar="0.00000000000000000000"
     )
     
     transaction2 = TransactionResponse(
         id=2,
         symbol="ETHUSDT",
-        buy_price=Decimal("3000.00"),
+        buy_price="3000.00000000000000000000",
         sell_price=None,
         status=1,
-        quantity=Decimal("1.0"),
+        quantity="1.00000000000000000000",
         user_id=1,
         created_at=datetime.now(),
         updated_at=datetime.now(),
-        buyAggregate=Decimal("3000.00"),
-        diffDollar=Decimal("0")
+        buyAggregate="3000.00000000000000000000",
+        diffDollar="0.00000000000000000000"
     )
     
     order_list = OrderListResponse(

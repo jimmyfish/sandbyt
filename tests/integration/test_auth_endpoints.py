@@ -123,7 +123,7 @@ async def test_post_auth_register_returns_422_when_name_is_missing(async_client,
         }
     )
     
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     data = response.json()
     assert "detail" in data
 
@@ -144,7 +144,7 @@ async def test_post_auth_register_returns_422_when_name_is_missing_verifies_no_u
         }
     )
     
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     
     # Verify user was not created (async operation)
     user_record = await get_user_by_email(email)

@@ -4,7 +4,7 @@
 # Load environment variables from .env file (handles empty values and special chars)
 if [ -f .env ]; then
     set -a  # automatically export all variables
-    source .env.test.local
+    source .env
     set +a  # stop automatically exporting
 fi
 

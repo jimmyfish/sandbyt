@@ -158,7 +158,7 @@ async def test_post_watchlist_validates_symbol_max_10_chars(test_user, authentic
         json={"symbol": "BTCUSDTEXTRA"}  # 13 characters
     )
     
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     data = response.json()
     assert "detail" in data
     # Pydantic validation error should mention symbol length

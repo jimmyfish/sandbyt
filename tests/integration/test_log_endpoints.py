@@ -120,7 +120,7 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
             "action": "buy"
         }
     )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     
     # Test missing data
     response = await authenticated_async_client.post(
@@ -130,7 +130,7 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
             "action": "buy"
         }
     )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     
     # Test missing action
     response = await authenticated_async_client.post(
@@ -140,7 +140,7 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
             "data": {"key": "value"}
         }
     )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -39,8 +39,21 @@ from app.services.binance import (
 router = APIRouter(prefix="/order", tags=["Orders"])
 
 
+def _format_decimal(value: Decimal) -> str:
+    """Format Decimal to string preserving full precision without scientific notation.
+    
+    DECIMAL(30,20) means 30 total digits, 20 after decimal point.
+    This formats the decimal to always show the full precision.
+    """
+    return f"{value:.20f}"
+
+
 def _serialize_transaction(record) -> TransactionResponse:
-    """Convert an asyncpg.Record to a TransactionResponse."""
+    """Convert an asyncpg.Record to a TransactionResponse.
+    
+    All decimal fields are formatted as strings with 20 decimal places
+    to preserve precision, consistent with UserResponse.balance pattern.
+    """
     # Calculate computed fields
     buy_price = Decimal(str(record["buy_price"]))
     quantity = Decimal(str(record["quantity"]))
@@ -56,22 +69,20 @@ def _serialize_transaction(record) -> TransactionResponse:
     else:
         diff_dollar = Decimal("0")
     
-    return TransactionResponse.model_validate(
-        {
-            "id": record["id"],
-            "symbol": record["symbol"],
-            "buy_price": str(buy_price),
-            "sell_price": str(sell_price) if sell_price else None,
-            "status": record["status"],
-            "quantity": str(quantity),
-            "user_id": record["user_id"],
-            "created_at": record["created_at"],
-            "updated_at": record["updated_at"],
-            "diff": str(diff) if diff else None,
-            "buyAggregate": str(buy_aggregate),
-            "sellAggregate": str(sell_aggregate) if sell_aggregate else None,
-            "diffDollar": str(diff_dollar),
-        }
+    return TransactionResponse(
+        id=record["id"],
+        symbol=record["symbol"],
+        buy_price=_format_decimal(buy_price),
+        sell_price=_format_decimal(sell_price) if sell_price else None,
+        status=record["status"],
+        quantity=_format_decimal(quantity),
+        user_id=record["user_id"],
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
+        diff=_format_decimal(diff) if diff else None,
+        buyAggregate=_format_decimal(buy_aggregate),
+        sellAggregate=_format_decimal(sell_aggregate) if sell_aggregate else None,
+        diffDollar=_format_decimal(diff_dollar),
     )
 
 

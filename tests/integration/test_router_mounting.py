@@ -23,11 +23,11 @@ def test_order_router_is_mounted_and_accessible(client):
     # Test that the order router is accessible (will return 401 without auth, but that's expected)
     response = client.get("/order")
     # Should return 401 (unauthorized) not 404 (not found), proving router is mounted
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify POST endpoint exists
     response = client.post("/order", json={"symbol": "BTCUSDT", "quantity": "0.1"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify DELETE endpoint exists by checking OpenAPI schema
     openapi_response = client.get("/openapi.json")
@@ -47,11 +47,11 @@ def test_watchlist_router_is_mounted_and_accessible(client):
     # Test that the watchlist router is accessible
     response = client.get("/watchlist")
     # Should return 401 (unauthorized) not 404 (not found), proving router is mounted
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify POST endpoint exists
     response = client.post("/watchlist", json={"symbol": "BTCUSDT"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify DELETE endpoint exists
     response = client.delete("/watchlist/BTCUSDT")
@@ -63,11 +63,11 @@ def test_log_router_is_mounted_and_accessible(client):
     # Test that the log router is accessible
     response = client.get("/log")
     # Should return 401 (unauthorized) not 404 (not found), proving router is mounted
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify POST endpoint exists
     response = client.post("/log", json={"symbol": "BTCUSDT", "data": {}, "action": "test"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
 
 
 def test_strategy_router_is_mounted_and_accessible(client):
@@ -75,19 +75,19 @@ def test_strategy_router_is_mounted_and_accessible(client):
     # Test that the strategy router is accessible
     response = client.get("/strategy")
     # Should return 401 (unauthorized) not 404 (not found), proving router is mounted
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify POST endpoint exists
     response = client.post("/strategy", json={"name": "Test Strategy"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify PUT endpoint exists
     response = client.put("/strategy/1", json={"name": "Updated Strategy"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify DELETE endpoint exists
     response = client.delete("/strategy/1")
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
 
 
 def test_trade_strategy_router_is_mounted_and_accessible(client):
@@ -95,19 +95,19 @@ def test_trade_strategy_router_is_mounted_and_accessible(client):
     # Test that the trade_strategy router is accessible
     response = client.get("/trade-strategy")
     # Should return 401 (unauthorized) not 404 (not found), proving router is mounted
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify POST endpoint exists
     response = client.post("/trade-strategy", json={"symbol": "BTCUSDT", "strategy_id": 1})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify PUT endpoint exists
     response = client.put("/trade-strategy/1", json={"symbol": "ETHUSDT"})
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
     
     # Verify DELETE endpoint exists
     response = client.delete("/trade-strategy/1")
-    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY]
+    assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT]
 
 
 def test_all_routers_appear_in_openapi_documentation(client):

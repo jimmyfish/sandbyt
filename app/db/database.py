@@ -41,7 +41,7 @@ async def init_db():
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 name TEXT NOT NULL,
-                balance NUMERIC(20, 8) NOT NULL DEFAULT 0,
+                balance DECIMAL(30,20) NOT NULL DEFAULT 0.00000000000000000000,
                 created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
                 updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
             );
@@ -61,7 +61,7 @@ async def init_db():
                 
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                               WHERE table_name='users' AND column_name='balance') THEN
-                    ALTER TABLE users ADD COLUMN balance NUMERIC(20, 8) NOT NULL DEFAULT 0;
+                    ALTER TABLE users ADD COLUMN balance DECIMAL(30,20) NOT NULL DEFAULT 0.00000000000000000000;
                 END IF;
                 
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns 

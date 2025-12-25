@@ -20,7 +20,7 @@ def client():
     return TestClient(app)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def test_user():
     """Create a test user for authenticated endpoints."""
     password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -56,6 +56,14 @@ def auth_token(test_user):
     return create_access_token({"sub": test_user["email"]})
 
 
+@pytest_asyncio.fixture(loop_scope="session")
+async def authenticated_async_client(async_client, test_user):
+    """Async test client with authentication headers."""
+    token = create_access_token({"sub": test_user["email"]})
+    async_client.headers = {"Authorization": f"Bearer {token}"}
+    return async_client
+
+
 @pytest.fixture
 def authenticated_client(client, auth_token):
     """Test client with authentication headers."""
@@ -63,8 +71,8 @@ def authenticated_client(client, auth_token):
     return client
 
 
-@pytest.mark.asyncio
-async def test_post_log_creates_log_entry_successfully(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_log_creates_log_entry_successfully(test_user, authenticated_async_client):
     """Test POST /log creates log entry successfully."""
     symbol = "BTCUSDT"
     data = {"price": 50000.50, "volume": 1.5, "timestamp": "2024-01-01T00:00:00Z"}
@@ -75,7 +83,7 @@ async def test_post_log_creates_log_entry_successfully(test_user, authenticated_
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM log WHERE symbol = $1", symbol)
     
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/log",
         json={
             "symbol": symbol,
@@ -101,11 +109,11 @@ async def test_post_log_creates_log_entry_successfully(test_user, authenticated_
         await conn.execute("DELETE FROM log WHERE symbol = $1", symbol)
 
 
-@pytest.mark.asyncio
-async def test_post_log_validates_symbol_data_action_required(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_log_validates_symbol_data_action_required(test_user, authenticated_async_client):
     """Test POST /log validates symbol, data (dict), action (required)."""
     # Test missing symbol
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/log",
         json={
             "data": {"key": "value"},
@@ -115,7 +123,7 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     
     # Test missing data
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/log",
         json={
             "symbol": "BTCUSDT",
@@ -125,7 +133,7 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     
     # Test missing action
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/log",
         json={
             "symbol": "BTCUSDT",
@@ -135,8 +143,8 @@ async def test_post_log_validates_symbol_data_action_required(test_user, authent
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-@pytest.mark.asyncio
-async def test_post_log_stores_data_as_json_text_in_database(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_log_stores_data_as_json_text_in_database(test_user, authenticated_async_client):
     """Test POST /log stores data as JSON text in database."""
     symbol = "ETHUSDT"
     data = {"price": 3000.25, "volume": 2.0, "metadata": {"source": "api"}}
@@ -147,7 +155,7 @@ async def test_post_log_stores_data_as_json_text_in_database(test_user, authenti
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM log WHERE symbol = $1", symbol)
     
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/log",
         json={
             "symbol": symbol,
@@ -177,15 +185,15 @@ async def test_post_log_stores_data_as_json_text_in_database(test_user, authenti
         await conn.execute("DELETE FROM log WHERE symbol = $1", symbol)
 
 
-@pytest.mark.asyncio
-async def test_get_log_returns_logs_ordered_by_created_at_desc(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_log_returns_logs_ordered_by_created_at_desc(test_user, authenticated_async_client):
     """Test GET /log returns logs ordered by created_at DESC."""
     # Create multiple log entries
     log1 = await create_log("BTCUSDT", {"price": 50000}, "buy")
     log2 = await create_log("ETHUSDT", {"price": 3000}, "sell")
     log3 = await create_log("ADAUSDT", {"price": 1.5}, "analysis")
     
-    response = authenticated_client.get("/log")
+    response = await authenticated_async_client.get("/log")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -217,8 +225,8 @@ async def test_get_log_returns_logs_ordered_by_created_at_desc(test_user, authen
         await conn.execute("DELETE FROM log WHERE id IN ($1, $2, $3)", log1["id"], log2["id"], log3["id"])
 
 
-@pytest.mark.asyncio
-async def test_get_log_filters_by_symbol_query_parameter_like_search(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_log_filters_by_symbol_query_parameter_like_search(test_user, authenticated_async_client):
     """Test GET /log filters by symbol query parameter (LIKE search)."""
     # Create logs with different symbols
     log1 = await create_log("BTCUSDT", {"price": 50000}, "buy")
@@ -226,7 +234,7 @@ async def test_get_log_filters_by_symbol_query_parameter_like_search(test_user, 
     log3 = await create_log("BTCEUR", {"price": 45000}, "analysis")
     
     # Filter by "BTC" - should match BTCUSDT and BTCEUR
-    response = authenticated_client.get("/log?symbol=BTC")
+    response = await authenticated_async_client.get("/log?symbol=BTC")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -244,8 +252,8 @@ async def test_get_log_filters_by_symbol_query_parameter_like_search(test_user, 
         await conn.execute("DELETE FROM log WHERE id IN ($1, $2, $3)", log1["id"], log2["id"], log3["id"])
 
 
-@pytest.mark.asyncio
-async def test_get_log_supports_pagination_limit_offset_query_parameters(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_log_supports_pagination_limit_offset_query_parameters(test_user, authenticated_async_client):
     """Test GET /log supports pagination (limit, offset query parameters)."""
     # Create multiple log entries
     log_ids = []
@@ -254,7 +262,7 @@ async def test_get_log_supports_pagination_limit_offset_query_parameters(test_us
         log_ids.append(log["id"])
     
     # Test with limit=2, offset=0
-    response = authenticated_client.get("/log?limit=2&offset=0")
+    response = await authenticated_async_client.get("/log?limit=2&offset=0")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -265,7 +273,7 @@ async def test_get_log_supports_pagination_limit_offset_query_parameters(test_us
     assert data["data"]["total_count"] >= 5  # At least our 5 logs
     
     # Test with limit=2, offset=2
-    response2 = authenticated_client.get("/log?limit=2&offset=2")
+    response2 = await authenticated_async_client.get("/log?limit=2&offset=2")
     
     assert response2.status_code == status.HTTP_200_OK
     data2 = response2.json()
@@ -288,15 +296,15 @@ async def test_get_log_supports_pagination_limit_offset_query_parameters(test_us
         await conn.execute("DELETE FROM log WHERE id = ANY($1::int[])", log_ids)
 
 
-@pytest.mark.asyncio
-async def test_get_log_includes_unique_symbols_list_in_response(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_log_includes_unique_symbols_list_in_response(test_user, authenticated_async_client):
     """Test GET /log includes unique_symbols list in response."""
     # Create logs with different symbols
     log1 = await create_log("BTCUSDT", {"price": 50000}, "buy")
     log2 = await create_log("ETHUSDT", {"price": 3000}, "sell")
     log3 = await create_log("ADAUSDT", {"price": 1.5}, "analysis")
     
-    response = authenticated_client.get("/log")
+    response = await authenticated_async_client.get("/log")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -315,8 +323,8 @@ async def test_get_log_includes_unique_symbols_list_in_response(test_user, authe
         await conn.execute("DELETE FROM log WHERE id IN ($1, $2, $3)", log1["id"], log2["id"], log3["id"])
 
 
-@pytest.mark.asyncio
-async def test_get_log_parses_data_field_as_json_in_response(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_log_parses_data_field_as_json_in_response(test_user, authenticated_async_client):
     """Test GET /log parses data field as JSON in response."""
     symbol = "BTCUSDT"
     data = {"price": 50000.50, "volume": 1.5, "nested": {"key": "value"}}
@@ -331,7 +339,7 @@ async def test_get_log_parses_data_field_as_json_in_response(test_user, authenti
     await create_log(symbol, data, action)
     
     # Fetch logs
-    response = authenticated_client.get("/log")
+    response = await authenticated_async_client.get("/log")
     
     assert response.status_code == status.HTTP_200_OK
     response_data = response.json()
@@ -350,15 +358,15 @@ async def test_get_log_parses_data_field_as_json_in_response(test_user, authenti
         await conn.execute("DELETE FROM log WHERE symbol = $1", symbol)
 
 
-@pytest.mark.asyncio
-async def test_all_endpoints_require_authentication(client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_all_endpoints_require_authentication(async_client):
     """Test all endpoints require authentication."""
     # Test GET /log
-    response = client.get("/log")
+    response = await async_client.get("/log")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
     # Test POST /log
-    response = client.post(
+    response = await async_client.post(
         "/log",
         json={
             "symbol": "BTCUSDT",
@@ -367,4 +375,3 @@ async def test_all_endpoints_require_authentication(client):
         }
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-

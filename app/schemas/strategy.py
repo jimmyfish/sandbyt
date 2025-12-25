@@ -44,12 +44,7 @@ class StrategyResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(
-        extra="forbid",
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict(extra="forbid")
 
 
 class StrategyListResponse(BaseModel):

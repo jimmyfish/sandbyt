@@ -18,12 +18,7 @@ class WatchlistResponse(BaseModel):
     symbol: str
     created_at: datetime
 
-    model_config = ConfigDict(
-        extra="forbid",
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict(extra="forbid")
 
 
 class WatchlistListResponse(BaseModel):

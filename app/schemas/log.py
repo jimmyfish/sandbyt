@@ -41,12 +41,7 @@ class LogResponse(BaseModel):
             return v
         raise ValueError(f"data must be a dict or JSON string, got {type(v)}")
 
-    model_config = ConfigDict(
-        extra="forbid",
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict(extra="forbid")
 
 
 class LogListResponse(BaseModel):

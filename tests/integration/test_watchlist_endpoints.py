@@ -19,7 +19,7 @@ def client():
     return TestClient(app)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def test_user():
     """Create a test user for authenticated endpoints."""
     password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -55,6 +55,14 @@ def auth_token(test_user):
     return create_access_token({"sub": test_user["email"]})
 
 
+@pytest_asyncio.fixture(loop_scope="session")
+async def authenticated_async_client(async_client, test_user):
+    """Async test client with authentication headers for tests that mix HTTP and async DB ops."""
+    token = create_access_token({"sub": test_user["email"]})
+    async_client.headers = {"Authorization": f"Bearer {token}"}
+    return async_client
+
+
 @pytest.fixture
 def authenticated_client(client, auth_token):
     """Test client with authentication headers."""
@@ -62,15 +70,15 @@ def authenticated_client(client, auth_token):
     return client
 
 
-@pytest.mark.asyncio
-async def test_get_watchlist_returns_all_watchlists(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_watchlist_returns_all_watchlists(test_user, authenticated_async_client):
     """Test GET /watchlist returns all watchlists."""
     # Create multiple watchlist entries
     w1 = await create_watchlist("BTCUSDT")
     w2 = await create_watchlist("ETHUSDT")
     w3 = await create_watchlist("ADAUSDT")
     
-    response = authenticated_client.get("/watchlist")
+    response = await authenticated_async_client.get("/watchlist")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -100,16 +108,16 @@ async def test_get_watchlist_returns_all_watchlists(test_user, authenticated_cli
         await conn.execute("DELETE FROM watchlists WHERE symbol IN ($1, $2, $3)", "BTCUSDT", "ETHUSDT", "ADAUSDT")
 
 
-@pytest.mark.asyncio
-async def test_get_watchlist_requires_authentication(client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_watchlist_requires_authentication(async_client):
     """Test GET /watchlist requires authentication (returns 401 without token)."""
-    response = client.get("/watchlist")
+    response = await async_client.get("/watchlist")
     
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.asyncio
-async def test_post_watchlist_creates_watchlist_entry_successfully(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_watchlist_creates_watchlist_entry_successfully(test_user, authenticated_async_client):
     """Test POST /watchlist creates watchlist entry successfully."""
     symbol = "BTCUSDT"
     
@@ -118,7 +126,7 @@ async def test_post_watchlist_creates_watchlist_entry_successfully(test_user, au
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM watchlists WHERE symbol = $1", symbol)
     
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/watchlist",
         json={"symbol": symbol}
     )
@@ -141,11 +149,11 @@ async def test_post_watchlist_creates_watchlist_entry_successfully(test_user, au
         await conn.execute("DELETE FROM watchlists WHERE symbol = $1", symbol)
 
 
-@pytest.mark.asyncio
-async def test_post_watchlist_validates_symbol_max_10_chars(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_watchlist_validates_symbol_max_10_chars(test_user, authenticated_async_client):
     """Test POST /watchlist validates symbol (max 10 chars)."""
     # Try to create watchlist with symbol exceeding 10 characters
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/watchlist",
         json={"symbol": "BTCUSDTEXTRA"}  # 13 characters
     )
@@ -156,8 +164,8 @@ async def test_post_watchlist_validates_symbol_max_10_chars(test_user, authentic
     # Pydantic validation error should mention symbol length
 
 
-@pytest.mark.asyncio
-async def test_post_watchlist_uppercases_symbol(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_watchlist_uppercases_symbol(test_user, authenticated_async_client):
     """Test POST /watchlist uppercases symbol."""
     symbol = "btcusdt"
     
@@ -166,7 +174,7 @@ async def test_post_watchlist_uppercases_symbol(test_user, authenticated_client)
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM watchlists WHERE symbol = $1", "BTCUSDT")
     
-    response = authenticated_client.post(
+    response = await authenticated_async_client.post(
         "/watchlist",
         json={"symbol": symbol}
     )
@@ -180,8 +188,8 @@ async def test_post_watchlist_uppercases_symbol(test_user, authenticated_client)
         await conn.execute("DELETE FROM watchlists WHERE symbol = $1", "BTCUSDT")
 
 
-@pytest.mark.asyncio
-async def test_delete_watchlist_deletes_watchlist_entry_successfully(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_watchlist_deletes_watchlist_entry_successfully(test_user, authenticated_async_client):
     """Test DELETE /watchlist/{symbol} deletes watchlist entry successfully."""
     symbol = "ETHUSDT"
     
@@ -199,7 +207,7 @@ async def test_delete_watchlist_deletes_watchlist_entry_successfully(test_user, 
     assert symbol in watchlist_symbols_before
     
     # Delete watchlist entry
-    response = authenticated_client.delete(f"/watchlist/{symbol}")
+    response = await authenticated_async_client.delete(f"/watchlist/{symbol}")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -213,10 +221,10 @@ async def test_delete_watchlist_deletes_watchlist_entry_successfully(test_user, 
     assert symbol not in watchlist_symbols_after
 
 
-@pytest.mark.asyncio
-async def test_delete_watchlist_returns_404_when_symbol_not_found(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_watchlist_returns_404_when_symbol_not_found(test_user, authenticated_async_client):
     """Test DELETE /watchlist/{symbol} returns 404 when symbol not found."""
-    symbol = "NONEXISTENT"
+    symbol = "NOTEXIST"  # Max 10 chars
     
     # Clean up any existing watchlist first
     pool = await get_db_pool()
@@ -224,7 +232,7 @@ async def test_delete_watchlist_returns_404_when_symbol_not_found(test_user, aut
         await conn.execute("DELETE FROM watchlists WHERE symbol = $1", symbol)
     
     # Try to delete non-existent watchlist
-    response = authenticated_client.delete(f"/watchlist/{symbol}")
+    response = await authenticated_async_client.delete(f"/watchlist/{symbol}")
     
     assert response.status_code == status.HTTP_404_NOT_FOUND
     data = response.json()
@@ -232,8 +240,8 @@ async def test_delete_watchlist_returns_404_when_symbol_not_found(test_user, aut
     assert "not found" in data["detail"].lower()
 
 
-@pytest.mark.asyncio
-async def test_delete_watchlist_uppercases_symbol(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_watchlist_uppercases_symbol(test_user, authenticated_async_client):
     """Test DELETE /watchlist/{symbol} uppercases symbol."""
     symbol = "btcusdt"
     
@@ -246,7 +254,7 @@ async def test_delete_watchlist_uppercases_symbol(test_user, authenticated_clien
     await create_watchlist("BTCUSDT")
     
     # Delete using lowercase symbol
-    response = authenticated_client.delete(f"/watchlist/{symbol}")
+    response = await authenticated_async_client.delete(f"/watchlist/{symbol}")
     
     assert response.status_code == status.HTTP_200_OK
     
@@ -256,11 +264,11 @@ async def test_delete_watchlist_uppercases_symbol(test_user, authenticated_clien
     assert "BTCUSDT" not in watchlist_symbols
 
 
-@pytest.mark.asyncio
-async def test_delete_watchlist_validates_symbol_max_10_chars(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_delete_watchlist_validates_symbol_max_10_chars(test_user, authenticated_async_client):
     """Test DELETE /watchlist/{symbol} validates symbol max 10 chars."""
     # Try to delete with symbol exceeding 10 characters
-    response = authenticated_client.delete("/watchlist/BTCUSDTEXTRA")  # 13 characters
+    response = await authenticated_async_client.delete("/watchlist/BTCUSDTEXTRA")  # 13 characters
     
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     data = response.json()
@@ -268,18 +276,18 @@ async def test_delete_watchlist_validates_symbol_max_10_chars(test_user, authent
     assert "10 characters" in data["detail"].lower()
 
 
-@pytest.mark.asyncio
-async def test_all_endpoints_require_authentication(client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_all_endpoints_require_authentication(async_client):
     """Test all endpoints require authentication."""
     # Test GET /watchlist
-    response = client.get("/watchlist")
+    response = await async_client.get("/watchlist")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
     # Test POST /watchlist
-    response = client.post("/watchlist", json={"symbol": "BTCUSDT"})
+    response = await async_client.post("/watchlist", json={"symbol": "BTCUSDT"})
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
     # Test DELETE /watchlist/{symbol}
-    response = client.delete("/watchlist/BTCUSDT")
+    response = await async_client.delete("/watchlist/BTCUSDT")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

@@ -108,7 +108,8 @@ async def test_update_user_balance_maintains_decimal_precision():
     user_id = user_record["id"]
     
     # Add high precision amount
-    high_precision_amount = Decimal("12345678901234567890.12345678901234567890")
+    # DECIMAL(30,20) allows max 10 digits before decimal (30-20=10) and 20 after
+    high_precision_amount = Decimal("1234567890.12345678901234567890")
     updated_user = await update_user_balance(user_id, high_precision_amount, "add")
     
     assert updated_user is not None
@@ -116,7 +117,7 @@ async def test_update_user_balance_maintains_decimal_precision():
     assert updated_user["balance"] == high_precision_amount
     
     # Verify precision is maintained through another operation
-    subtract_amount = Decimal("10000000000000000000.00000000000000000000")
+    subtract_amount = Decimal("1000000000.00000000000000000000")
     final_user = await update_user_balance(user_id, subtract_amount, "subtract")
     
     expected_balance = high_precision_amount - subtract_amount

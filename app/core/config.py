@@ -1,3 +1,4 @@
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -36,9 +37,10 @@ class Settings(BaseSettings):
     BYBIT_BASE_URL: str = ""
     BYBIT_TIMEOUT_SECONDS: float = 10.0
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True
+    )
 
 
 settings = Settings()

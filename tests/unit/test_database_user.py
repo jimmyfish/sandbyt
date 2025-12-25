@@ -126,7 +126,8 @@ async def test_create_user_balance_precision_maintained():
     assert balance == Decimal("0.00000000000000000000")
     
     # Verify we can store high precision values (test by updating)
-    high_precision = Decimal("12345678901234567890.12345678901234567890")
+    # DECIMAL(30,20) allows max 10 digits before decimal (30-20=10) and 20 after
+    high_precision = Decimal("1234567890.12345678901234567890")
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE users SET balance = $1 WHERE email = $2",

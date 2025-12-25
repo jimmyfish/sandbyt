@@ -20,7 +20,7 @@ def client():
     return TestClient(app)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def test_user():
     """Create a test user for authenticated endpoints."""
     password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -56,6 +56,14 @@ def auth_token(test_user):
     return create_access_token({"sub": test_user["email"]})
 
 
+@pytest_asyncio.fixture(loop_scope="session")
+async def authenticated_async_client(async_client, test_user):
+    """Async test client with authentication headers."""
+    token = create_access_token({"sub": test_user["email"]})
+    async_client.headers = {"Authorization": f"Bearer {token}"}
+    return async_client
+
+
 @pytest.fixture
 def authenticated_client(client, auth_token):
     """Test client with authentication headers."""
@@ -63,8 +71,8 @@ def authenticated_client(client, auth_token):
     return client
 
 
-@pytest.mark.asyncio
-async def test_get_order_returns_all_orders_for_authenticated_user(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_returns_all_orders_for_authenticated_user(test_user, authenticated_async_client):
     """Test GET /order returns all orders for authenticated user."""
     user_id = test_user["id"]
     
@@ -76,7 +84,7 @@ async def test_get_order_returns_all_orders_for_authenticated_user(test_user, au
     # Close one transaction (status=2)
     await update_transaction(tx1["id"], Decimal("51000.00"), 2)
     
-    response = authenticated_client.get("/order")
+    response = await authenticated_async_client.get("/order")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -107,16 +115,16 @@ async def test_get_order_returns_all_orders_for_authenticated_user(test_user, au
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_requires_authentication(client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_requires_authentication(async_client):
     """Test GET /order requires authentication (returns 401 without token)."""
-    response = client.get("/order")
+    response = await async_client.get("/order")
     
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-@pytest.mark.asyncio
-async def test_get_order_filters_by_active_only_true(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_filters_by_active_only_true(test_user, authenticated_async_client):
     """Test GET /order filters by active_only=True query parameter."""
     user_id = test_user["id"]
     
@@ -128,7 +136,7 @@ async def test_get_order_filters_by_active_only_true(test_user, authenticated_cl
     await update_transaction(tx1["id"], Decimal("51000.00"), 2)
     
     # Get only active orders
-    response = authenticated_client.get("/order?active_only=true")
+    response = await authenticated_async_client.get("/order?active_only=true")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -145,8 +153,8 @@ async def test_get_order_filters_by_active_only_true(test_user, authenticated_cl
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_filters_by_symbol(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_filters_by_symbol(test_user, authenticated_async_client):
     """Test GET /order filters by symbol query parameter."""
     user_id = test_user["id"]
     
@@ -156,7 +164,7 @@ async def test_get_order_filters_by_symbol(test_user, authenticated_client):
     tx3 = await create_transaction(user_id, "ADAUSDT", Decimal("1.00"), Decimal("100.0"))
     
     # Filter by symbol
-    response = authenticated_client.get("/order?symbol=BTCUSDT")
+    response = await authenticated_async_client.get("/order?symbol=BTCUSDT")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -173,8 +181,8 @@ async def test_get_order_filters_by_symbol(test_user, authenticated_client):
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_orders_results_by_status_asc_created_at_desc(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_orders_results_by_status_asc_created_at_desc(test_user, authenticated_async_client):
     """Test GET /order orders results by status ASC, created_at DESC."""
     user_id = test_user["id"]
     
@@ -187,7 +195,7 @@ async def test_get_order_orders_results_by_status_asc_created_at_desc(test_user,
     # Close tx2 (status=2)
     await update_transaction(tx2["id"], Decimal("3100.00"), 2)
     
-    response = authenticated_client.get("/order")
+    response = await authenticated_async_client.get("/order")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -210,8 +218,8 @@ async def test_get_order_orders_results_by_status_asc_created_at_desc(test_user,
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_includes_computed_fields(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_includes_computed_fields(test_user, authenticated_async_client):
     """Test GET /order includes computed fields (diff, buyAggregate, sellAggregate, diffDollar)."""
     user_id = test_user["id"]
     
@@ -219,7 +227,7 @@ async def test_get_order_includes_computed_fields(test_user, authenticated_clien
     tx = await create_transaction(user_id, "BTCUSDT", Decimal("50000.00"), Decimal("0.1"))
     await update_transaction(tx["id"], Decimal("51000.00"), 2)
     
-    response = authenticated_client.get("/order")
+    response = await authenticated_async_client.get("/order")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -248,8 +256,8 @@ async def test_get_order_includes_computed_fields(test_user, authenticated_clien
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_includes_unique_symbols_list(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_includes_unique_symbols_list(test_user, authenticated_async_client):
     """Test GET /order includes unique_symbols list in response."""
     user_id = test_user["id"]
     
@@ -259,7 +267,7 @@ async def test_get_order_includes_unique_symbols_list(test_user, authenticated_c
     await create_transaction(user_id, "ADAUSDT", Decimal("1.00"), Decimal("100.0"))
     await create_transaction(user_id, "BTCUSDT", Decimal("51000.00"), Decimal("0.05"))  # Duplicate symbol
     
-    response = authenticated_client.get("/order")
+    response = await authenticated_async_client.get("/order")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -279,15 +287,15 @@ async def test_get_order_includes_unique_symbols_list(test_user, authenticated_c
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
 
 
-@pytest.mark.asyncio
-async def test_get_order_handles_null_sell_price_in_computed_fields(test_user, authenticated_client):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_order_handles_null_sell_price_in_computed_fields(test_user, authenticated_async_client):
     """Test GET /order handles NULL sell_price in computed fields."""
     user_id = test_user["id"]
     
     # Create an active transaction (no sell_price)
     tx = await create_transaction(user_id, "BTCUSDT", Decimal("50000.00"), Decimal("0.1"))
     
-    response = authenticated_client.get("/order")
+    response = await authenticated_async_client.get("/order")
     
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -309,4 +317,3 @@ async def test_get_order_handles_null_sell_price_in_computed_fields(test_user, a
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM transact WHERE user_id = $1", user_id)
-

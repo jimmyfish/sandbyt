@@ -58,15 +58,16 @@ def test_user_response_includes_name_and_balance_fields():
     )
     
     assert user_response.name == "Test User"
-    assert user_response.balance == Decimal("100.50")
-    assert isinstance(user_response.balance, Decimal)
+    # Balance is stored as string with full precision (20 decimal places)
+    assert user_response.balance == "100.50000000000000000000"
+    assert isinstance(user_response.balance, str)
 
 
-def test_user_response_balance_uses_decimal_type():
-    """Test balance field uses Decimal type for precision."""
+def test_user_response_balance_uses_string_type_for_precision():
+    """Test balance field is serialized as string to preserve precision."""
     from datetime import datetime
     
-    # Test with high precision value
+    # Test with high precision value - Decimal is converted to string
     balance_value = Decimal("0.00000000000000000000")
     user_response = UserResponse(
         id=1,
@@ -76,16 +77,21 @@ def test_user_response_balance_uses_decimal_type():
         created_at=datetime.now()
     )
     
-    assert isinstance(user_response.balance, Decimal)
-    assert user_response.balance == Decimal("0.00000000000000000000")
+    # Balance is stored as string to preserve precision in JSON serialization
+    assert isinstance(user_response.balance, str)
+    assert user_response.balance == "0.00000000000000000000"
 
 
 def test_user_response_balance_precision():
-    """Test balance field maintains DECIMAL(30,20) precision."""
+    """Test balance field maintains precision when serialized as string.
+    
+    Note: DECIMAL(30,20) allows 10 digits before decimal (30-20=10) and 20 after.
+    The value used here fits within those constraints.
+    """
     from datetime import datetime
     
-    # Test with maximum precision value
-    high_precision = Decimal("12345678901234567890.12345678901234567890")
+    # Test with value that fits DECIMAL(30,20): max 10 digits before decimal
+    high_precision = Decimal("1234567890.12345678901234567890")
     user_response = UserResponse(
         id=1,
         email="test@example.com",
@@ -94,6 +100,7 @@ def test_user_response_balance_precision():
         created_at=datetime.now()
     )
     
-    assert user_response.balance == high_precision
-    assert isinstance(user_response.balance, Decimal)
+    # Balance is stored as string to preserve precision
+    assert user_response.balance == str(high_precision)
+    assert isinstance(user_response.balance, str)
 

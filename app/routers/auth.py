@@ -14,15 +14,17 @@ password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def _serialize_user(record) -> UserResponse:
-    """Convert an asyncpg.Record to a UserResponse"""
-    return UserResponse.model_validate(
-        {
-            "id": record["id"],
-            "email": record["email"],
-            "name": record.get("name", ""), 
-            "balance": str(record["balance"]),
-            "created_at": record["created_at"],
-        }
+    """Convert an asyncpg.Record to a UserResponse.
+    
+    Note: Pass the Decimal balance directly - UserResponse will handle
+    the conversion to string with proper formatting.
+    """
+    return UserResponse(
+        id=record["id"],
+        email=record["email"],
+        name=record.get("name", ""), 
+        balance=record["balance"],  # Let UserResponse format the Decimal
+        created_at=record["created_at"],
     )
 
 

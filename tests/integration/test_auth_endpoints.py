@@ -19,7 +19,7 @@ def client():
     return TestClient(app)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def cleanup_emails():
     """Fixture to track emails for cleanup after test execution."""
     emails = []
@@ -33,13 +33,14 @@ async def cleanup_emails():
                 await conn.execute("DELETE FROM users WHERE email = $1", email)
 
 
-def test_post_auth_register_accepts_name_field_in_request(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_accepts_name_field_in_request(async_client, cleanup_emails):
     """Test POST /auth/register accepts name field in request."""
     email = "test_name_field@example.com"
     cleanup_emails.append(email)
     
     # Register user with name field
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -54,15 +55,15 @@ def test_post_auth_register_accepts_name_field_in_request(client, cleanup_emails
     assert "data" in data
 
 
-@pytest.mark.asyncio
-async def test_post_auth_register_stores_name_in_database(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_stores_name_in_database(async_client, cleanup_emails):
     """Test POST /auth/register stores name in database."""
     email = "test_store_name@example.com"
     name = "Stored Name Test User"
     cleanup_emails.append(email)
     
     # Register user with name field
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -79,14 +80,15 @@ async def test_post_auth_register_stores_name_in_database(client, cleanup_emails
     assert user_record["name"] == name
 
 
-def test_post_auth_register_returns_name_in_response(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_returns_name_in_response(async_client, cleanup_emails):
     """Test POST /auth/register returns name in response."""
     email = "test_return_name@example.com"
     name = "Return Name Test User"
     cleanup_emails.append(email)
     
     # Register user with name field
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -105,13 +107,14 @@ def test_post_auth_register_returns_name_in_response(client, cleanup_emails):
     assert user_data["name"] == name
 
 
-def test_post_auth_register_returns_422_when_name_is_missing(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_returns_422_when_name_is_missing(async_client, cleanup_emails):
     """Test POST /auth/register returns 422 when name is missing."""
     email = "test_missing_name@example.com"
     cleanup_emails.append(email)
     
     # Try to register user without name field
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -125,14 +128,14 @@ def test_post_auth_register_returns_422_when_name_is_missing(client, cleanup_ema
     assert "detail" in data
 
 
-@pytest.mark.asyncio
-async def test_post_auth_register_returns_422_when_name_is_missing_verifies_no_user_created(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_returns_422_when_name_is_missing_verifies_no_user_created(async_client, cleanup_emails):
     """Test POST /auth/register returns 422 when name is missing and verifies user was not created."""
     email = "test_missing_name_verify@example.com"
     cleanup_emails.append(email)
     
     # Try to register user without name field
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -148,15 +151,15 @@ async def test_post_auth_register_returns_422_when_name_is_missing_verifies_no_u
     assert user_record is None
 
 
-@pytest.mark.asyncio
-async def test_post_auth_register_initializes_balance_to_0(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_post_auth_register_initializes_balance_to_0(async_client, cleanup_emails):
     """Test POST /auth/register initializes balance to 0."""
     email = "test_balance_init@example.com"
     name = "Balance Init Test User"
     cleanup_emails.append(email)
     
     # Register user
-    response = client.post(
+    response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -181,14 +184,15 @@ async def test_post_auth_register_initializes_balance_to_0(client, cleanup_email
 
 # Task 29: Tests for GET /auth/profile returning name and balance fields
 
-def test_get_auth_profile_returns_name_field(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_auth_profile_returns_name_field(async_client, cleanup_emails):
     """Test GET /auth/profile returns name field."""
     email = "test_profile_name@example.com"
     name = "Profile Name Test User"
     cleanup_emails.append(email)
     
     # Register user
-    register_response = client.post(
+    register_response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -199,7 +203,7 @@ def test_get_auth_profile_returns_name_field(client, cleanup_emails):
     assert register_response.status_code == status.HTTP_201_CREATED
     
     # Login to get token
-    login_response = client.post(
+    login_response = await async_client.post(
         "/auth/login",
         json={
             "email": email,
@@ -211,7 +215,7 @@ def test_get_auth_profile_returns_name_field(client, cleanup_emails):
     access_token = login_data["data"]["access_token"]
     
     # Get profile with token
-    profile_response = client.get(
+    profile_response = await async_client.get(
         "/auth/profile",
         headers={"Authorization": f"Bearer {access_token}"}
     )
@@ -226,14 +230,15 @@ def test_get_auth_profile_returns_name_field(client, cleanup_emails):
     assert user_data["name"] == name
 
 
-def test_get_auth_profile_returns_balance_field(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_auth_profile_returns_balance_field(async_client, cleanup_emails):
     """Test GET /auth/profile returns balance field."""
     email = "test_profile_balance@example.com"
     name = "Profile Balance Test User"
     cleanup_emails.append(email)
     
     # Register user
-    register_response = client.post(
+    register_response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -244,7 +249,7 @@ def test_get_auth_profile_returns_balance_field(client, cleanup_emails):
     assert register_response.status_code == status.HTTP_201_CREATED
     
     # Login to get token
-    login_response = client.post(
+    login_response = await async_client.post(
         "/auth/login",
         json={
             "email": email,
@@ -256,7 +261,7 @@ def test_get_auth_profile_returns_balance_field(client, cleanup_emails):
     access_token = login_data["data"]["access_token"]
     
     # Get profile with token
-    profile_response = client.get(
+    profile_response = await async_client.get(
         "/auth/profile",
         headers={"Authorization": f"Bearer {access_token}"}
     )
@@ -273,15 +278,15 @@ def test_get_auth_profile_returns_balance_field(client, cleanup_emails):
     assert user_data["balance"] == "0.00000000000000000000"
 
 
-@pytest.mark.asyncio
-async def test_get_auth_profile_balance_field_is_decimal_type_in_database(client, cleanup_emails):
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_auth_profile_balance_field_is_decimal_type_in_database(async_client, cleanup_emails):
     """Test balance field is returned as Decimal type from database (serialized as string in response)."""
     email = "test_profile_decimal@example.com"
     name = "Profile Decimal Test User"
     cleanup_emails.append(email)
     
-    # Register user (synchronous HTTP call)
-    register_response = client.post(
+    # Register user
+    register_response = await async_client.post(
         "/auth/register",
         json={
             "email": email,
@@ -301,8 +306,8 @@ async def test_get_auth_profile_balance_field_is_decimal_type_in_database(client
             email
         )
     
-    # Login to get token (synchronous HTTP call)
-    login_response = client.post(
+    # Login to get token
+    login_response = await async_client.post(
         "/auth/login",
         json={
             "email": email,
@@ -313,8 +318,8 @@ async def test_get_auth_profile_balance_field_is_decimal_type_in_database(client
     login_data = login_response.json()
     access_token = login_data["data"]["access_token"]
     
-    # Get profile with token (synchronous HTTP call)
-    profile_response = client.get(
+    # Get profile with token
+    profile_response = await async_client.get(
         "/auth/profile",
         headers={"Authorization": f"Bearer {access_token}"}
     )
@@ -330,8 +335,8 @@ async def test_get_auth_profile_balance_field_is_decimal_type_in_database(client
     # Verify balance is returned as string (as per UserResponse schema)
     assert isinstance(user_data["balance"], str)
     
-    # Verify the balance value matches what we set (as string)
-    assert user_data["balance"] == "123.45678901234567890"
+    # Verify the balance value matches what we set (as string with 20 decimal places)
+    assert user_data["balance"] == "123.45678901234567890000"
     
     # Verify in database that it's stored as Decimal (async database operation)
     user_record = await get_user_by_email(email)

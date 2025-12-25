@@ -1,24 +1,39 @@
 openapi: 3.0.3
 info:
   title: goblin API
-  description: A FastAPI application with PostgreSQL connection
+  description: A FastAPI-based trading sandbox platform with user authentication, order management, market data integration, and strategy management
   version: 1.0.0
 servers:
   - url: http://localhost:8000
+    description: Local development server
 
 tags:
+  - name: System
+    description: System endpoints (root, health check)
   - name: Auth
     description: Authentication endpoints
   - name: Users
     description: User profile endpoints
   - name: Market
     description: Bybit market data endpoints
+  - name: Orders
+    description: Order management endpoints
+  - name: Watchlist
+    description: Watchlist management endpoints
+  - name: Log
+    description: Trading log endpoints
+  - name: Strategy
+    description: Strategy management endpoints
+  - name: Trade Strategy
+    description: Trade strategy mapping endpoints
 
 paths:
   /:
     get:
-      summary: Root
-      description: Root endpoint
+      tags:
+        - System
+      summary: Root endpoint
+      description: Root endpoint returning welcome message
       operationId: root_get
       responses:
         "200":
@@ -35,6 +50,8 @@ paths:
 
   /health:
     get:
+      tags:
+        - System
       summary: Health check
       description: Health check endpoint to verify API and database connectivity
       operationId: health_check_get
@@ -94,7 +111,8 @@ paths:
                     data:
                       id: 1
                       email: user@example.com
-                      balance: "0"
+                      name: John Doe
+                      balance: "0.00000000000000000000"
                       created_at: "2025-01-01T00:00:00Z"
         "400":
           description: Email already registered
@@ -143,7 +161,8 @@ paths:
                       user:
                         id: 1
                         email: user@example.com
-                        balance: "0"
+                        name: John Doe
+                        balance: "0.00000000000000000000"
                         created_at: "2025-01-01T00:00:00Z"
         "401":
           description: Invalid email or password
@@ -266,21 +285,926 @@ paths:
               schema:
                 $ref: "#/components/schemas/FastAPIError"
 
+  /order:
+    post:
+      tags:
+        - Orders
+      summary: Create buy order
+      description: Create a buy order for a trading symbol. Validates symbol and quantity, fetches current market price from Binance API, checks balance and duplicate orders, then creates transaction and updates balance atomically.
+      operationId: order_create_post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCreate"
+      responses:
+        "201":
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_TransactionResponse"
+        "400":
+          description: Bad request (insufficient balance, duplicate order)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error (Binance API error, database error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "503":
+          description: Service unavailable (Binance API connection error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+    delete:
+      tags:
+        - Orders
+      summary: Close sell order
+      description: Close a sell order for a trading symbol. Finds active transaction, fetches current market price from Binance API, then updates transaction and balance atomically.
+      operationId: order_close_delete
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderClose"
+      responses:
+        "200":
+          description: Order closed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+              examples:
+                success:
+                  value:
+                    status: success
+                    message: sell order complete
+                    data: {}
+        "400":
+          description: Bad request (order not found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error (Binance API error, database error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "503":
+          description: Service unavailable (Binance API connection error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+    get:
+      tags:
+        - Orders
+      summary: List orders
+      description: List user orders with optional filtering. Returns transactions with computed fields (diff, buyAggregate, sellAggregate, diffDollar) and unique symbols list.
+      operationId: order_list_get
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: active_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: If true, only return active orders (status=1)
+        - name: symbol
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional symbol to filter by
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_OrderListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /watchlist:
+    get:
+      tags:
+        - Watchlist
+      summary: List watchlists
+      description: List all watchlist entries with unique symbols
+      operationId: watchlist_list_get
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_WatchlistListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    post:
+      tags:
+        - Watchlist
+      summary: Create watchlist entry
+      description: Create a new watchlist entry for the specified symbol
+      operationId: watchlist_create_post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistCreate"
+      responses:
+        "201":
+          description: Watchlist entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_WatchlistResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /watchlist/{symbol}:
+    delete:
+      tags:
+        - Watchlist
+      summary: Delete watchlist entry
+      description: Delete a watchlist entry by symbol
+      operationId: watchlist_delete_delete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 10
+          description: Trading symbol to remove from watchlist
+      responses:
+        "200":
+          description: Watchlist entry deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+        "400":
+          description: Bad request (symbol exceeds max length)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Symbol not found in watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /log:
+    get:
+      tags:
+        - Log
+      summary: List logs
+      description: List log entries with optional filtering and pagination. Supports filtering by symbol (LIKE search) and returns unique symbols from all logs.
+      operationId: log_list_get
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter logs by symbol (LIKE search, e.g., 'BTC' matches 'BTCUSDT')
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of records per page (1-1000)
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of records to skip for pagination
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_LogListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+    post:
+      tags:
+        - Log
+      summary: Create log entry
+      description: Create a new log entry with symbol, data (as JSON), and action
+      operationId: log_create_post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogCreate"
+      responses:
+        "201":
+          description: Log entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_LogResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /strategy:
+    get:
+      tags:
+        - Strategy
+      summary: List strategies
+      description: List all strategies, optionally including soft-deleted ones. Results are ordered by created_at DESC.
+      operationId: strategy_list_get
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: include_deleted
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Include soft-deleted strategies in results (default: True)
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_StrategyListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    post:
+      tags:
+        - Strategy
+      summary: Create strategy
+      description: Create a new strategy with name and optional slug. If slug is not provided, it will be auto-generated from the name.
+      operationId: strategy_create_post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyCreate"
+      responses:
+        "201":
+          description: Strategy created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_StrategyResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    put:
+      tags:
+        - Strategy
+      summary: Update strategy
+      description: Update a strategy's name and/or slug. If name is provided and slug is not, slug will be auto-generated from name.
+      operationId: strategy_update_put
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strategy ID to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyUpdate"
+      responses:
+        "200":
+          description: Strategy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_StrategyResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    delete:
+      tags:
+        - Strategy
+      summary: Soft delete strategy
+      description: Soft delete a strategy by setting the deleted_at timestamp. The record is not removed from the database.
+      operationId: strategy_delete_delete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strategy ID to soft delete
+      responses:
+        "200":
+          description: Strategy soft deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /strategy/{strategy_id}:
+  /strategy/{strategy_id}:
+    put:
+      tags:
+        - Strategy
+      summary: Update strategy
+      description: Update a strategy's name and/or slug. If name is provided and slug is not, slug will be auto-generated from name.
+      operationId: strategy_update_put
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strategy ID to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StrategyUpdate"
+      responses:
+        "200":
+          description: Strategy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_StrategyResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    delete:
+      tags:
+        - Strategy
+      summary: Soft delete strategy
+      description: Soft delete a strategy by setting the deleted_at timestamp. The record is not removed from the database.
+      operationId: strategy_delete_delete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Strategy ID to soft delete
+      responses:
+        "200":
+          description: Strategy soft deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /trade-strategy:
+    get:
+      tags:
+        - Trade Strategy
+      summary: List trade strategies
+      description: List all trade strategies, optionally including soft-deleted ones. Results are ordered by created_at DESC.
+      operationId: trade_strategy_list_get
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: include_deleted
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Include soft-deleted trade strategies in results (default: True)
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_TradeStrategyListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    post:
+      tags:
+        - Trade Strategy
+      summary: Create trade strategy
+      description: Create a new trade strategy mapping with symbol, strategy_id, and optional timestamp. If timestamp is not provided, it defaults to '5m'.
+      operationId: trade_strategy_create_post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeStrategyCreate"
+      responses:
+        "201":
+          description: Trade strategy created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_TradeStrategyResponse"
+        "400":
+          description: Bad request (strategy_id does not exist)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    put:
+      tags:
+        - Trade Strategy
+      summary: Update trade strategy
+      description: Update a trade strategy's symbol, strategy_id, and/or timestamp
+      operationId: trade_strategy_update_put
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: trade_strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Trade strategy ID to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeStrategyUpdate"
+      responses:
+        "200":
+          description: Trade strategy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_TradeStrategyResponse"
+        "400":
+          description: Bad request (strategy_id does not exist)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Trade strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    delete:
+      tags:
+        - Trade Strategy
+      summary: Soft delete trade strategy
+      description: Soft delete a trade strategy by setting the deleted_at timestamp. The record is not removed from the database.
+      operationId: trade_strategy_delete_delete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: trade_strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Trade strategy ID to soft delete
+      responses:
+        "200":
+          description: Trade strategy soft deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Trade strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
+  /trade-strategy/{trade_strategy_id}:
+  /trade-strategy/{trade_strategy_id}:
+    put:
+      tags:
+        - Trade Strategy
+      summary: Update trade strategy
+      description: Update a trade strategy's symbol, strategy_id, and/or timestamp
+      operationId: trade_strategy_update_put
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: trade_strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Trade strategy ID to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeStrategyUpdate"
+      responses:
+        "200":
+          description: Trade strategy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_TradeStrategyResponse"
+        "400":
+          description: Bad request (strategy_id does not exist)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Trade strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+    delete:
+      tags:
+        - Trade Strategy
+      summary: Soft delete trade strategy
+      description: Soft delete a trade strategy by setting the deleted_at timestamp. The record is not removed from the database.
+      operationId: trade_strategy_delete_delete
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: trade_strategy_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Trade strategy ID to soft delete
+      responses:
+        "200":
+          description: Trade strategy soft deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandardResponse_Object"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "404":
+          description: Trade strategy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FastAPIError"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT token authentication. Include token in Authorization header as "Bearer <token>"
 
   schemas:
-    # --- Request/response models (mirrors app/schemas/*.py) ---
+    # --- Standard Response Envelope ---
+    StandardResponse_Object:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: success or error
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    # --- User Schemas ---
     UserCreate:
       type: object
       additionalProperties: false
       required:
         - email
         - password
+        - name
       properties:
         email:
           type: string
@@ -289,6 +1213,10 @@ components:
           type: string
           minLength: 8
           maxLength: 72
+        name:
+          type: string
+          minLength: 1
+          description: User's full name
 
     UserLogin:
       type: object
@@ -311,6 +1239,7 @@ components:
       required:
         - id
         - email
+        - name
         - balance
         - created_at
       properties:
@@ -320,10 +1249,12 @@ components:
         email:
           type: string
           format: email
+        name:
+          type: string
         balance:
           type: string
-          description: User balance (NUMERIC(20, 8)) serialized as string
-          example: "0"
+          description: User balance (DECIMAL(30,20)) serialized as string to preserve precision
+          example: "0.00000000000000000000"
         created_at:
           type: string
           format: date-time
@@ -344,29 +1275,6 @@ components:
           enum: [bearer]
         user:
           $ref: "#/components/schemas/UserResponse"
-
-    # --- StandardResponse envelope specializations ---
-    StandardResponse_Object:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          description: success or error
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          type: object
-          nullable: true
-          additionalProperties: true
 
     StandardResponse_UserResponse:
       type: object
@@ -410,27 +1318,7 @@ components:
             - $ref: "#/components/schemas/LoginResponse"
           nullable: true
 
-    StandardResponse_MarketPrice:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/MarketPrice"
-          nullable: true
-
+    # --- Market Schemas ---
     MarketPrice:
       type: object
       additionalProperties: false
@@ -452,7 +1340,635 @@ components:
           format: int64
           nullable: true
 
-    # --- Minimal error models (FastAPI defaults) ---
+    StandardResponse_MarketPrice:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/MarketPrice"
+          nullable: true
+
+    # --- Order Schemas ---
+    OrderCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+        - quantity
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+          description: Trading symbol (e.g., BTCUSDT)
+        quantity:
+          type: string
+          description: Quantity of the asset to buy (must be positive, decimal serialized as string)
+          pattern: "^[0-9]+(\\.[0-9]+)?$"
+
+    OrderClose:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+          description: Trading symbol (e.g., BTCUSDT)
+
+    TransactionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - symbol
+        - buy_price
+        - status
+        - quantity
+        - user_id
+        - created_at
+        - updated_at
+        - buyAggregate
+        - diffDollar
+      properties:
+        id:
+          type: integer
+          format: int32
+        symbol:
+          type: string
+        buy_price:
+          type: string
+          description: Buy price as string to preserve precision
+        sell_price:
+          type: string
+          nullable: true
+          description: Sell price as string (NULL if not sold)
+        status:
+          type: integer
+          description: Order status (1=active, 2=closed)
+        quantity:
+          type: string
+          description: Quantity as string to preserve precision
+        user_id:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        diff:
+          type: string
+          nullable: true
+          description: sell_price - buy_price as string (NULL if sell_price is NULL)
+        buyAggregate:
+          type: string
+          description: buy_price * quantity as string
+        sellAggregate:
+          type: string
+          nullable: true
+          description: sell_price * quantity as string (NULL if sell_price is NULL)
+        diffDollar:
+          type: string
+          default: "0"
+          description: Equity as string if status=2, else '0'
+
+    OrderListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - orders
+        - unique_symbols
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionResponse"
+          description: List of user orders/transactions
+        unique_symbols:
+          type: array
+          items:
+            type: string
+          description: List of unique symbols from all orders
+
+    StandardResponse_TransactionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/TransactionResponse"
+          nullable: true
+
+    StandardResponse_OrderListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/OrderListResponse"
+          nullable: true
+
+    # --- Watchlist Schemas ---
+    WatchlistCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+          description: Trading symbol (e.g., BTCUSDT)
+
+    WatchlistResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - symbol
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        symbol:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    WatchlistListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - watchlists
+        - unique_symbols
+      properties:
+        watchlists:
+          type: array
+          items:
+            $ref: "#/components/schemas/WatchlistResponse"
+          description: List of watchlist entries
+        unique_symbols:
+          type: array
+          items:
+            type: string
+          description: List of unique symbols from all watchlists
+
+    StandardResponse_WatchlistResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/WatchlistResponse"
+          nullable: true
+
+    StandardResponse_WatchlistListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/WatchlistListResponse"
+          nullable: true
+
+    # --- Log Schemas ---
+    LogCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+        - data
+        - action
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 10
+          description: Trading symbol (e.g., BTCUSDT)
+        data:
+          type: object
+          additionalProperties: true
+          description: Dictionary data to store as JSON
+        action:
+          type: string
+          minLength: 1
+          description: Action description (e.g., 'buy', 'sell', 'analysis')
+
+    LogResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - symbol
+        - data
+        - action
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        symbol:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+          description: Parsed JSON data (stored as JSON text in database)
+        action:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    LogListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - logs
+        - unique_symbols
+        - total_count
+        - limit
+        - offset
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogResponse"
+          description: List of log entries
+        unique_symbols:
+          type: array
+          items:
+            type: string
+          description: List of unique symbols from all logs
+        total_count:
+          type: integer
+          format: int32
+          description: Total number of matching records (for pagination)
+        limit:
+          type: integer
+          format: int32
+          description: Maximum number of records per page
+        offset:
+          type: integer
+          format: int32
+          description: Number of records skipped for pagination
+
+    StandardResponse_LogResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/LogResponse"
+          nullable: true
+
+    StandardResponse_LogListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/LogListResponse"
+          nullable: true
+
+    # --- Strategy Schemas ---
+    StrategyCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Strategy name (required)
+        slug:
+          type: string
+          nullable: true
+          description: Strategy slug (optional, auto-generated from name if not provided)
+
+    StrategyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          nullable: true
+          minLength: 1
+          description: Strategy name (optional)
+        slug:
+          type: string
+          nullable: true
+          description: Strategy slug (optional)
+
+    StrategyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - slug
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        name:
+          type: string
+        slug:
+          type: string
+          description: URL-friendly identifier
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soft delete timestamp (NULL if not deleted)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StrategyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - strategies
+      properties:
+        strategies:
+          type: array
+          items:
+            $ref: "#/components/schemas/StrategyResponse"
+          description: List of strategies
+
+    StandardResponse_StrategyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/StrategyResponse"
+          nullable: true
+
+    StandardResponse_StrategyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/StrategyListResponse"
+          nullable: true
+
+    # --- Trade Strategy Schemas ---
+    TradeStrategyCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - symbol
+        - strategy_id
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 15
+          description: Trading symbol (required, max 15 characters)
+        strategy_id:
+          type: integer
+          format: int32
+          description: Strategy ID (required, must exist in strategies table)
+        timestamp:
+          type: string
+          default: "5m"
+          description: Timestamp interval (optional, defaults to '5m')
+
+    TradeStrategyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+          nullable: true
+          maxLength: 15
+          description: Trading symbol (optional, max 15 characters)
+        strategy_id:
+          type: integer
+          format: int32
+          nullable: true
+          description: Strategy ID (optional, must exist in strategies table)
+        timestamp:
+          type: string
+          nullable: true
+          description: Timestamp interval (optional)
+
+    TradeStrategyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - symbol
+        - strategy_id
+        - timestamp
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+        symbol:
+          type: string
+        strategy_id:
+          type: integer
+          format: int32
+        timestamp:
+          type: string
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Soft delete timestamp (NULL if not deleted)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TradeStrategyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - trade_strategies
+      properties:
+        trade_strategies:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradeStrategyResponse"
+          description: List of trade strategies
+
+    StandardResponse_TradeStrategyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/TradeStrategyResponse"
+          nullable: true
+
+    StandardResponse_TradeStrategyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+        data:
+          allOf:
+            - $ref: "#/components/schemas/TradeStrategyListResponse"
+          nullable: true
+
+    # --- Error Schemas ---
     FastAPIError:
       type: object
       additionalProperties: true

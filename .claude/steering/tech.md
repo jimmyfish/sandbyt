@@ -35,12 +35,27 @@ goblin API follows a **modern async Python architecture** with FastAPI as the we
 ### Configuration & Settings
 - **pydantic-settings**: Type-safe configuration management from environment variables
   - Used in `app/core/config.py` via `BaseSettings` class
-  - Settings class defines database and JWT configuration with defaults
+  - Settings class defines database, JWT, Binance, and Bybit configuration with defaults
 - **pydantic**: Core Pydantic library for data validation and serialization
   - Used throughout `app/schemas/` for request/response models
   - Provides `BaseModel`, `EmailStr`, `Field`, `ConfigDict` for schema definition
 - **python-dotenv**: Load environment variables from `.env` files
   - Used in `app/core/config.py` via `load_dotenv()` call
+
+### External API Integration
+- **httpx**: Async HTTP client for external API calls
+  - Used in `app/clients/bybit.py` for Bybit API integration
+  - Supports async/await patterns for non-blocking API requests
+- **Bybit API**: Market data integration for real-time price queries
+  - Supports testnet (`api-testnet.bybit.com`) and mainnet (`api.bybit.com`)
+  - Market categories: spot, linear, inverse, option
+  - Configured via `BYBIT_BASE_URL` and `BYBIT_TIMEOUT_SECONDS` environment variables
+
+### Data Processing (Optional)
+- **pandas**: Data analysis library for DataFrame operations
+  - Used in `app/db/database.py` via `records_to_dataframe()` and `query_to_dataframe()` helpers
+  - Converts asyncpg.Record objects to pandas DataFrames for analysis
+  - Optional dependency - functions raise ImportError if pandas not installed
 
 ### Server
 - **uvicorn**: ASGI server for running FastAPI application
@@ -74,6 +89,11 @@ JWT_EXPIRES_MINUTES=60
 # Binance API Configuration
 BINANCE_API_URL=https://api.binance.com
 # For testnet, use: BINANCE_API_URL=https://testnet.binance.vision
+
+# Bybit API Configuration
+BYBIT_BASE_URL=https://api-testnet.bybit.com
+# For mainnet, use: BYBIT_BASE_URL=https://api.bybit.com
+BYBIT_TIMEOUT_SECONDS=10.0
 ```
 
 ### Port Configuration
@@ -89,11 +109,29 @@ BINANCE_API_URL=https://api.binance.com
 # Install dependencies
 pip install -r requirements.txt
 
-# Run development server with auto-reload
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
 # Create database (PostgreSQL)
 createdb goblin
+
+# Run database migrations (Flyway)
+./scripts/run_migrations.sh
+# Or directly:
+flyway migrate -configFiles=flyway.conf
+
+# Run development server with auto-reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Database Migrations
+
+```bash
+# Run migrations
+./scripts/run_migrations.sh
+
+# Check migration status
+flyway info -configFiles=flyway.conf
+
+# Validate migrations
+flyway validate -configFiles=flyway.conf
 ```
 
 ### API Access
@@ -104,15 +142,59 @@ createdb goblin
 
 ## Database Schema
 
-Current tables:
+Current tables (managed via Flyway migrations in `db/migration/`):
 
-- **users**: Stores user accounts
+- **users**: Stores user accounts with balance tracking
   - `id` (SERIAL PRIMARY KEY)
   - `email` (TEXT UNIQUE NOT NULL)
   - `password` (TEXT NOT NULL) - stores bcrypt hash
+  - `name` (TEXT NOT NULL)
+  - `balance` (DECIMAL(30,20) NOT NULL DEFAULT 0) - user trading balance
+  - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+  - `updated_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+
+- **transact**: Stores trading orders/transactions
+  - `id` (SERIAL PRIMARY KEY)
+  - `symbol` (TEXT NOT NULL) - trading symbol (e.g., "BTCUSDT")
+  - `buy_price` (DECIMAL(30,20) NOT NULL)
+  - `sell_price` (DECIMAL(30,20)) - NULL until order closed
+  - `status` (INTEGER NOT NULL DEFAULT 1) - 1=active, 2=closed
+  - `quantity` (DECIMAL(30,20) NOT NULL)
+  - `user_id` (INTEGER NOT NULL REFERENCES users(id))
+  - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+  - `updated_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+
+- **watchlists**: Stores watchlist entries
+  - `id` (SERIAL PRIMARY KEY)
+  - `symbol` (TEXT NOT NULL)
   - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
 
-Tables are automatically created on application startup via `init_db()` function.
+- **log**: Stores trading logs and analysis data
+  - `id` (SERIAL PRIMARY KEY)
+  - `symbol` (TEXT NOT NULL)
+  - `data` (TEXT NOT NULL) - JSON string storage
+  - `action` (TEXT NOT NULL) - action description
+  - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+  - `updated_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+
+- **strategies**: Stores trading strategies
+  - `id` (SERIAL PRIMARY KEY)
+  - `name` (TEXT NOT NULL)
+  - `slug` (TEXT NOT NULL) - URL-friendly identifier
+  - `deleted_at` (TIMESTAMPTZ) - soft deletion timestamp
+  - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+  - `updated_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+
+- **trade_strategies**: Maps symbols to strategies with time intervals
+  - `id` (SERIAL PRIMARY KEY)
+  - `symbol` (TEXT NOT NULL) - max 15 chars
+  - `strategy_id` (INTEGER NOT NULL REFERENCES strategies(id))
+  - `timestamp` (TEXT NOT NULL DEFAULT '5m') - time interval
+  - `deleted_at` (TIMESTAMPTZ) - soft deletion timestamp
+  - `created_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+  - `updated_at` (TIMESTAMPTZ DEFAULT timezone('utc', now()))
+
+**Note**: Database schema is managed via Flyway migrations in `db/migration/`. The `init_db()` function in `app/db/database.py` only creates the users table as a fallback for backward compatibility. All schema changes should go through Flyway migrations.
 
 ## Important Technical Notes
 
@@ -148,15 +230,19 @@ All endpoints wrap responses in `StandardResponse[DataT]` generic type for consi
 - **Auto-generated Docs**: FastAPI automatically generates Swagger UI (`/docs`) and ReDoc (`/redoc`)
 - **Schema Sync**: Pydantic models in `app/schemas/` are automatically reflected in OpenAPI spec
 
-## Planned Extensions
+## Migration History
 
-The project has migration specifications in `.claude/specs/initial-migrations/` that outline:
-- Binance API integration for trading sandbox
-- Extended database schema (transact, watchlists, log, strategies, trade_strategies tables)
-- Order management and balance tracking
-- Strategy management system
+The project has completed migration from PHP Laravel-based Binance Sandbox to Python FastAPI. Migration specifications in `.claude/specs/initial-migrations/` document the completed work:
 
-These extensions will maintain the asyncpg-based architecture (no ORM) for performance.
+- ✅ Bybit API integration for market data (replacing Binance)
+- ✅ Extended database schema (transact, watchlists, log, strategies, trade_strategies tables)
+- ✅ Order management and balance tracking with atomic transactions
+- ✅ Strategy management system with soft deletion
+- ✅ Watchlist management
+- ✅ Trading log system with JSON data storage
+- ✅ Trade strategy mapping (symbols to strategies with time intervals)
+
+All features maintain the asyncpg-based architecture (no ORM) for performance.
 
 ## Dependencies Actually Used in Codebase
 
@@ -179,5 +265,10 @@ Based on actual imports in the codebase, the following dependencies are actively
 - `datetime`, `typing` - Type hints and date handling (used throughout)
 - `fastapi.responses.JSONResponse` - Error response formatting (used in main.py)
 
-**Note**: This documentation reflects only dependencies that are actually imported and used in the application code. Other dependencies may be present in `requirements.txt` but are not currently integrated into the codebase.
+**Additional Dependencies Used:**
+- `httpx` - Async HTTP client for Bybit API integration (imported in `app/clients/bybit.py`)
+- `pandas` - Optional dependency for DataFrame conversion helpers (imported conditionally in `app/db/database.py`)
+- `decimal` - Standard library for precise decimal arithmetic (used for financial calculations)
+
+**Note**: This documentation reflects dependencies that are actively imported and used in the application code. Other dependencies may be present in `requirements.txt` for future use or as transitive dependencies.
 

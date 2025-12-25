@@ -5,28 +5,6 @@ info:
   version: 1.0.0
 servers:
   - url: http://localhost:8000
-    description: Local development server
-
-tags:
-  - name: System
-    description: System endpoints (root, health check)
-  - name: Auth
-    description: Authentication endpoints
-  - name: Users
-    description: User profile endpoints
-  - name: Market
-    description: Bybit market data endpoints
-  - name: Orders
-    description: Order management endpoints
-  - name: Watchlist
-    description: Watchlist management endpoints
-  - name: Log
-    description: Trading log endpoints
-  - name: Strategy
-    description: Strategy management endpoints
-  - name: Trade Strategy
-    description: Trade strategy mapping endpoints
-
 paths:
   /:
     get:
@@ -34,7 +12,7 @@ paths:
         - System
       summary: Root endpoint
       description: Root endpoint returning welcome message
-      operationId: root_get
+      operationId: getRoot
       responses:
         "200":
           description: Success
@@ -54,7 +32,7 @@ paths:
         - System
       summary: Health check
       description: Health check endpoint to verify API and database connectivity
-      operationId: health_check_get
+      operationId: getHealth
       responses:
         "200":
           description: Healthy
@@ -90,7 +68,7 @@ paths:
         - Auth
       summary: Register user
       description: Create a new user account with hashed password
-      operationId: auth_register_post
+      operationId: postAuthRegister
       requestBody:
         required: true
         content:
@@ -137,7 +115,7 @@ paths:
         - Auth
       summary: Login
       description: Authenticate a user with email and password
-      operationId: auth_login_post
+      operationId: postAuthLogin
       requestBody:
         required: true
         content:
@@ -187,7 +165,7 @@ paths:
         - Auth
       summary: Profile
       description: Return the authenticated user's profile details
-      operationId: auth_profile_get
+      operationId: getAuthProfile
       security:
         - bearerAuth: []
       responses:
@@ -220,7 +198,7 @@ paths:
         - Users
       summary: Me
       description: Return the authenticated user's profile details
-      operationId: users_me_get
+      operationId: getUsersMe
       security:
         - bearerAuth: []
       responses:
@@ -253,7 +231,7 @@ paths:
         - Market
       summary: Current price
       description: Return the current symbol price from Bybit (uses BYBIT_BASE_URL configuration)
-      operationId: market_price_get
+      operationId: getMarketPrice
       parameters:
         - name: symbol
           in: query
@@ -291,7 +269,7 @@ paths:
         - Orders
       summary: Create buy order
       description: Create a buy order for a trading symbol. Validates symbol and quantity, fetches current market price from Binance API, checks balance and duplicate orders, then creates transaction and updates balance atomically.
-      operationId: order_create_post
+      operationId: postOrder
       security:
         - bearerAuth: []
       requestBody:
@@ -342,7 +320,7 @@ paths:
         - Orders
       summary: Close sell order
       description: Close a sell order for a trading symbol. Finds active transaction, fetches current market price from Binance API, then updates transaction and balance atomically.
-      operationId: order_close_delete
+      operationId: deleteOrder
       security:
         - bearerAuth: []
       requestBody:
@@ -393,7 +371,7 @@ paths:
         - Orders
       summary: List orders
       description: List user orders with optional filtering. Returns transactions with computed fields (diff, buyAggregate, sellAggregate, diffDollar) and unique symbols list.
-      operationId: order_list_get
+      operationId: getOrder
       security:
         - bearerAuth: []
       parameters:
@@ -436,7 +414,7 @@ paths:
         - Watchlist
       summary: List watchlists
       description: List all watchlist entries with unique symbols
-      operationId: watchlist_list_get
+      operationId: getWatchlist
       security:
         - bearerAuth: []
       responses:
@@ -457,7 +435,7 @@ paths:
         - Watchlist
       summary: Create watchlist entry
       description: Create a new watchlist entry for the specified symbol
-      operationId: watchlist_create_post
+      operationId: postWatchlist
       security:
         - bearerAuth: []
       requestBody:
@@ -498,7 +476,7 @@ paths:
         - Watchlist
       summary: Delete watchlist entry
       description: Delete a watchlist entry by symbol
-      operationId: watchlist_delete_delete
+      operationId: deleteWatchlist
       security:
         - bearerAuth: []
       parameters:
@@ -547,7 +525,7 @@ paths:
         - Log
       summary: List logs
       description: List log entries with optional filtering and pagination. Supports filtering by symbol (LIKE search) and returns unique symbols from all logs.
-      operationId: log_list_get
+      operationId: getLog
       security:
         - bearerAuth: []
       parameters:
@@ -598,7 +576,7 @@ paths:
         - Log
       summary: Create log entry
       description: Create a new log entry with symbol, data (as JSON), and action
-      operationId: log_create_post
+      operationId: postLog
       security:
         - bearerAuth: []
       requestBody:
@@ -639,14 +617,13 @@ paths:
         - Strategy
       summary: List strategies
       description: List all strategies, optionally including soft-deleted ones. Results are ordered by created_at DESC.
-      operationId: strategy_list_get
+      operationId: getStrategy
       security:
         - bearerAuth: []
       parameters:
         - name: include_deleted
           in: query
           required: false
-          description: Include soft-deleted strategies in results (default: True)
           schema:
             type: boolean
             default: true
@@ -668,7 +645,7 @@ paths:
         - Strategy
       summary: Create strategy
       description: Create a new strategy with name and optional slug. If slug is not provided, it will be auto-generated from the name.
-      operationId: strategy_create_post
+      operationId: postStrategy
       security:
         - bearerAuth: []
       requestBody:
@@ -702,12 +679,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FastAPIError"
+  /strategy/{strategy_id}:
     put:
       tags:
         - Strategy
       summary: Update strategy
       description: Update a strategy's name and/or slug. If name is provided and slug is not, slug will be auto-generated from name.
-      operationId: strategy_update_put
+      operationId: putStrategy
       security:
         - bearerAuth: []
       parameters:
@@ -759,102 +737,7 @@ paths:
         - Strategy
       summary: Soft delete strategy
       description: Soft delete a strategy by setting the deleted_at timestamp. The record is not removed from the database.
-      operationId: strategy_delete_delete
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: strategy_id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: Strategy ID to soft delete
-      responses:
-        "200":
-          description: Strategy soft deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StandardResponse_Object"
-        "401":
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "404":
-          description: Strategy not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-
-  /strategy/{strategy_id}:
-  /strategy/{strategy_id}:
-    put:
-      tags:
-        - Strategy
-      summary: Update strategy
-      description: Update a strategy's name and/or slug. If name is provided and slug is not, slug will be auto-generated from name.
-      operationId: strategy_update_put
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: strategy_id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: Strategy ID to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StrategyUpdate"
-      responses:
-        "200":
-          description: Strategy updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StandardResponse_StrategyResponse"
-        "401":
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "404":
-          description: Strategy not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "422":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HTTPValidationError"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-    delete:
-      tags:
-        - Strategy
-      summary: Soft delete strategy
-      description: Soft delete a strategy by setting the deleted_at timestamp. The record is not removed from the database.
-      operationId: strategy_delete_delete
+      operationId: deleteStrategy
       security:
         - bearerAuth: []
       parameters:
@@ -893,17 +776,16 @@ paths:
   /trade-strategy:
     get:
       tags:
-        - Trade Strategy
+        - TradeStrategy
       summary: List trade strategies
       description: List all trade strategies, optionally including soft-deleted ones. Results are ordered by created_at DESC.
-      operationId: trade_strategy_list_get
+      operationId: getTradeStrategy
       security:
         - bearerAuth: []
       parameters:
         - name: include_deleted
           in: query
           required: false
-          description: Include soft-deleted trade strategies in results (default: True)
           schema:
             type: boolean
             default: true
@@ -922,10 +804,10 @@ paths:
                 $ref: "#/components/schemas/FastAPIError"
     post:
       tags:
-        - Trade Strategy
+        - TradeStrategy
       summary: Create trade strategy
       description: Create a new trade strategy mapping with symbol, strategy_id, and optional timestamp. If timestamp is not provided, it defaults to '5m'.
-      operationId: trade_strategy_create_post
+      operationId: postTradeStrategy
       security:
         - bearerAuth: []
       requestBody:
@@ -963,115 +845,16 @@ paths:
           description: Internal server error
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-    put:
-      tags:
-        - Trade Strategy
-      summary: Update trade strategy
-      description: Update a trade strategy's symbol, strategy_id, and/or timestamp
-      operationId: trade_strategy_update_put
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: trade_strategy_id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: Trade strategy ID to update
-      requestBody:
-        required: true
-        content:
-          application/json:
             schema:
-              $ref: "#/components/schemas/TradeStrategyUpdate"
-      responses:
-        "200":
-          description: Trade strategy updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StandardResponse_TradeStrategyResponse"
-        "400":
-          description: Bad request (strategy_id does not exist)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "401":
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "404":
-          description: Trade strategy not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "422":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HTTPValidationError"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-    delete:
-      tags:
-        - Trade Strategy
-      summary: Soft delete trade strategy
-      description: Soft delete a trade strategy by setting the deleted_at timestamp. The record is not removed from the database.
-      operationId: trade_strategy_delete_delete
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: trade_strategy_id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: Trade strategy ID to soft delete
-      responses:
-        "200":
-          description: Trade strategy soft deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StandardResponse_Object"
-        "401":
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "404":
-          description: Trade strategy not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FastAPIError"
+              $ref: "#/components/schemas/FastAPIError"
 
   /trade-strategy/{trade_strategy_id}:
-  /trade-strategy/{trade_strategy_id}:
     put:
       tags:
-        - Trade Strategy
+        - TradeStrategy
       summary: Update trade strategy
       description: Update a trade strategy's symbol, strategy_id, and/or timestamp
-      operationId: trade_strategy_update_put
+      operationId: putTradeStrategy
       security:
         - bearerAuth: []
       parameters:
@@ -1126,10 +909,10 @@ paths:
                 $ref: "#/components/schemas/FastAPIError"
     delete:
       tags:
-        - Trade Strategy
+        - TradeStrategy
       summary: Soft delete trade strategy
       description: Soft delete a trade strategy by setting the deleted_at timestamp. The record is not removed from the database.
-      operationId: trade_strategy_delete_delete
+      operationId: deleteTradeStrategy
       security:
         - bearerAuth: []
       parameters:
@@ -1175,16 +958,13 @@ components:
 
   schemas:
     # --- Standard Response Envelope ---
-    StandardResponse_Object:
+    StandardResponseBase:
       type: object
       additionalProperties: false
-      required:
-        - status
       properties:
         status:
           type: string
-          description: success or error
-          example: success
+          default: success
         message:
           type: string
           nullable: true
@@ -1193,9 +973,19 @@ components:
           nullable: true
           additionalProperties: true
         data:
-          type: object
           nullable: true
-          additionalProperties: true
+      required:
+        - status
+
+    StandardResponse_Object:
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              additionalProperties: true
 
     # --- User Schemas ---
     UserCreate:
@@ -1277,46 +1067,20 @@ components:
           $ref: "#/components/schemas/UserResponse"
 
     StandardResponse_UserResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/UserResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/UserResponse"
 
     StandardResponse_LoginResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/LoginResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LoginResponse"
 
     # --- Market Schemas ---
     MarketPrice:
@@ -1341,25 +1105,12 @@ components:
           nullable: true
 
     StandardResponse_MarketPrice:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/MarketPrice"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/MarketPrice"
 
     # --- Order Schemas ---
     OrderCreate:
@@ -1468,46 +1219,20 @@ components:
           description: List of unique symbols from all orders
 
     StandardResponse_TransactionResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/TransactionResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TransactionResponse"
 
     StandardResponse_OrderListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/OrderListResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/OrderListResponse"
 
     # --- Watchlist Schemas ---
     WatchlistCreate:
@@ -1558,46 +1283,20 @@ components:
           description: List of unique symbols from all watchlists
 
     StandardResponse_WatchlistResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/WatchlistResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/WatchlistResponse"
 
     StandardResponse_WatchlistListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/WatchlistListResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/WatchlistListResponse"
 
     # --- Log Schemas ---
     LogCreate:
@@ -1685,46 +1384,20 @@ components:
           description: Number of records skipped for pagination
 
     StandardResponse_LogResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/LogResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LogResponse"
 
     StandardResponse_LogListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/LogListResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LogListResponse"
 
     # --- Strategy Schemas ---
     StrategyCreate:
@@ -1799,46 +1472,20 @@ components:
           description: List of strategies
 
     StandardResponse_StrategyResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/StrategyResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StrategyResponse"
 
     StandardResponse_StrategyListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/StrategyListResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StrategyListResponse"
 
     # --- Trade Strategy Schemas ---
     TradeStrategyCreate:
@@ -1927,46 +1574,20 @@ components:
           description: List of trade strategies
 
     StandardResponse_TradeStrategyResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/TradeStrategyResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TradeStrategyResponse"
 
     StandardResponse_TradeStrategyListResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          nullable: true
-        meta:
-          type: object
-          nullable: true
-          additionalProperties: true
-        data:
-          allOf:
-            - $ref: "#/components/schemas/TradeStrategyListResponse"
-          nullable: true
+      allOf:
+        - $ref: "#/components/schemas/StandardResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TradeStrategyListResponse"
 
     # --- Error Schemas ---
     FastAPIError:

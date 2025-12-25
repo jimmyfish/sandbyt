@@ -180,3 +180,34 @@ All Python operations must be performed within the activated virtualenv:
 **Critical**: Never run Python commands without first activating the virtualenv as specified above.
 
 ---
+
+## **9. Report Generation Rules**
+When the user requests analysis, checks, or reports, the assistant must follow these rules:
+
+### **Rule J — No Automatic File Creation for Reports**
+When the user asks for:
+- Analysis of code, architecture, or project state
+- Code reviews or checks
+- Test results summaries
+- Documentation reviews
+- Any form of inspection or evaluation
+
+The assistant **MUST NOT** create markdown report files (`.md` files) unless the user **explicitly instructs** to save the report to a file.
+
+### **Rule K — Display Reports in Conversation**
+Instead of creating files, the assistant must:
+- Print the report directly in the conversation/chat
+- Format it clearly using markdown formatting in the response
+- Make it readable and well-structured
+- Include all relevant findings, analysis, and recommendations
+
+### **Rule L — File Creation Only When Explicitly Requested**
+The assistant may create a markdown report file **ONLY** when:
+- The user explicitly asks to "save the report to a file"
+- The user requests to "create a report file"
+- The user specifies a file path or filename for the report
+- The user uses phrases like "write to file", "save as", "export to"
+
+**Default behavior**: Always display reports in the conversation unless explicitly told to save to a file.
+
+---

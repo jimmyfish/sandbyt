@@ -48,14 +48,19 @@ async def reset_db_pool():
     
     This fixture ensures that the global database pool is reset at the start
     of the test session so it gets recreated with test database configuration
-    from .env.test.local.
+    from .env.test.local. It also initializes the database schema.
     """
     from app.db import database
+    from app.db.database import get_db_pool, init_db
     
     # Reset the global pool to force recreation with test settings
     if database._db_pool is not None:
         await database._db_pool.close()
         database._db_pool = None
+    
+    # Initialize database schema (create all tables)
+    await get_db_pool()
+    await init_db()
     
     yield
     

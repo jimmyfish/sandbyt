@@ -16,15 +16,15 @@ def test_uses_test_database():
     # Check settings object
     settings_db_name = settings.DB_NAME
     
-    # Both should be set to test database (not "newsly")
-    assert settings_db_name != "newsly", (
-        f"Tests are using production database 'newsly'. "
+    # Both should be set to test database (not "goblin")
+    assert settings_db_name != "goblin", (
+        f"Tests are using production database 'goblin'. "
         f"Please ensure .env.test.local has DB_NAME set to a test database. "
         f"Current DB_NAME: {settings_db_name}"
     )
     
-    assert env_db_name != "newsly", (
-        f"Environment variable DB_NAME is set to production database 'newsly'. "
+    assert env_db_name != "goblin", (
+        f"Environment variable DB_NAME is set to production database 'goblin'. "
         f"Please ensure .env.test.local has DB_NAME set to a test database. "
         f"Current DB_NAME: {env_db_name}"
     )
@@ -37,7 +37,7 @@ def test_uses_test_database():
 def test_test_database_configuration_loaded():
     """Verify that test database configuration is loaded from .env.test.local."""
     # The test database should have a different name than production
-    assert settings.DB_NAME != "newsly"
+    assert settings.DB_NAME != "goblin"
     
     # Verify other database settings are loaded
     assert settings.DB_HOST is not None

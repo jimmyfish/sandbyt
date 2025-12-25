@@ -40,16 +40,35 @@ async def init_db():
                 id SERIAL PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
+                name TEXT NOT NULL,
                 balance NUMERIC(20, 8) NOT NULL DEFAULT 0,
-                created_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+                updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
             );
             """
         )
-        # Backward-compatible migration: add balance to existing installs.
+        # Backward-compatible migration: add name, balance, and updated_at to existing installs.
         await conn.execute(
             """
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS balance NUMERIC(20, 8) NOT NULL DEFAULT 0;
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='users' AND column_name='name') THEN
+                    ALTER TABLE users ADD COLUMN name TEXT;
+                    UPDATE users SET name = '' WHERE name IS NULL;
+                    ALTER TABLE users ALTER COLUMN name SET NOT NULL;
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='users' AND column_name='balance') THEN
+                    ALTER TABLE users ADD COLUMN balance NUMERIC(20, 8) NOT NULL DEFAULT 0;
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='users' AND column_name='updated_at') THEN
+                    ALTER TABLE users ADD COLUMN updated_at TIMESTAMPTZ DEFAULT timezone('utc', now());
+                END IF;
+            END $$;
             """
         )
 
@@ -246,6 +265,78 @@ async def get_active_transaction(
         )
 
 
+async def create_order_atomic(
+    user_id: int,
+    symbol: str,
+    buy_price: Decimal,
+    quantity: Decimal
+) -> asyncpg.Record:
+    """Create a new transaction and update user balance atomically in a single database transaction
+    
+    This function ensures that both the transaction creation and balance update
+    happen atomically - if either operation fails, both are rolled back.
+    
+    Args:
+        user_id: User ID who owns the transaction
+        symbol: Trading symbol (e.g., "BTCUSDT")
+        buy_price: Price at which the asset was bought
+        quantity: Quantity of the asset
+        
+    Returns:
+        asyncpg.Record with transaction fields including id, symbol, buy_price,
+        sell_price, status, quantity, user_id, created_at, updated_at
+        
+    Raises:
+        ValueError: If user doesn't have sufficient balance
+        asyncpg.exceptions.UniqueViolationError: If duplicate transaction constraint is violated
+    """
+    pool = await get_db_pool()
+    total_cost = buy_price * quantity
+    
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Check user balance first
+            user_balance = await conn.fetchval(
+                """
+                SELECT balance FROM users WHERE id = $1;
+                """,
+                user_id
+            )
+            
+            if user_balance is None:
+                raise ValueError(f"User {user_id} not found")
+            
+            if Decimal(str(user_balance)) < total_cost:
+                raise ValueError("Insufficient balance")
+            
+            # Create transaction record
+            transaction = await conn.fetchrow(
+                """
+                INSERT INTO transact (symbol, buy_price, quantity, user_id, status)
+                VALUES ($1, $2, $3, $4, 1)
+                RETURNING id, symbol, buy_price, sell_price, status, quantity, user_id, created_at, updated_at;
+                """,
+                symbol,
+                buy_price,
+                quantity,
+                user_id
+            )
+            
+            # Update user balance (subtract total cost)
+            await conn.execute(
+                """
+                UPDATE users
+                SET balance = balance - $1,
+                    updated_at = timezone('utc', now())
+                WHERE id = $2;
+                """,
+                total_cost,
+                user_id
+            )
+            
+            return transaction
+
+
 async def update_transaction(
     transaction_id: int,
     sell_price: Decimal,
@@ -277,6 +368,78 @@ async def update_transaction(
             status,
             transaction_id
         )
+
+
+async def close_order_atomic(
+    user_id: int,
+    symbol: str,
+    sell_price: Decimal
+) -> asyncpg.Record:
+    """Close an active order and update user balance atomically in a single database transaction
+    
+    This function ensures that both the transaction update and balance update
+    happen atomically - if either operation fails, both are rolled back.
+    
+    Args:
+        user_id: User ID who owns the transaction
+        symbol: Trading symbol (e.g., "BTCUSDT")
+        sell_price: Price at which the asset is being sold
+        
+    Returns:
+        asyncpg.Record with updated transaction fields including id, symbol, buy_price,
+        sell_price, status, quantity, user_id, created_at, updated_at
+        
+    Raises:
+        ValueError: If no active transaction is found for the user and symbol
+    """
+    pool = await get_db_pool()
+    
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Find active transaction
+            transaction = await conn.fetchrow(
+                """
+                SELECT id, symbol, buy_price, sell_price, status, quantity, user_id, created_at, updated_at
+                FROM transact
+                WHERE user_id = $1 AND symbol = $2 AND status = 1;
+                """,
+                user_id,
+                symbol
+            )
+            
+            if transaction is None:
+                raise ValueError(f"No active order found for symbol {symbol}")
+            
+            quantity = Decimal(str(transaction["quantity"]))
+            total_proceeds = sell_price * quantity
+            
+            # Update transaction with sell price and status=2 (closed)
+            updated_transaction = await conn.fetchrow(
+                """
+                UPDATE transact
+                SET sell_price = $1,
+                    status = 2,
+                    updated_at = timezone('utc', now())
+                WHERE id = $2
+                RETURNING id, symbol, buy_price, sell_price, status, quantity, user_id, created_at, updated_at;
+                """,
+                sell_price,
+                transaction["id"]
+            )
+            
+            # Update user balance (add total proceeds)
+            await conn.execute(
+                """
+                UPDATE users
+                SET balance = balance + $1,
+                    updated_at = timezone('utc', now())
+                WHERE id = $2;
+                """,
+                total_proceeds,
+                user_id
+            )
+            
+            return updated_transaction
 
 
 async def get_user_transactions(
@@ -908,6 +1071,93 @@ async def soft_delete_trade_strategy(trade_strategy_id: int) -> asyncpg.Record:
             raise ValueError(f"Trade strategy with id {trade_strategy_id} not found")
         
         return result
+
+
+def records_to_dataframe(records: list[asyncpg.Record]):
+    """Convert a list of asyncpg.Record objects to a pandas DataFrame.
+    
+    This function handles type conversions for common database types:
+    - datetime fields are preserved as datetime64
+    - Decimal fields are converted to float
+    - NULL values are preserved as NaN
+    
+    Args:
+        records: List of asyncpg.Record objects from database queries
+        
+    Returns:
+        pandas.DataFrame with columns matching the record fields
+        
+    Raises:
+        ImportError: If pandas is not installed (optional dependency)
+        
+    Example:
+        >>> records = await get_user_transactions(user_id=1)
+        >>> df = records_to_dataframe(records)
+        >>> print(df.head())
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError(
+            "pandas is required for DataFrame conversion. "
+            "Install it with: pip install pandas"
+        )
+    
+    if not records:
+        return pd.DataFrame()
+    
+    # Convert records to list of dictionaries
+    data = []
+    for record in records:
+        row = {}
+        for key in record.keys():
+            value = record[key]
+            
+            # Convert Decimal to float
+            if isinstance(value, Decimal):
+                row[key] = float(value) if value is not None else None
+            # Keep datetime as-is (pandas handles it well)
+            elif value is None:
+                row[key] = None
+            else:
+                row[key] = value
+        
+        data.append(row)
+    
+    # Create DataFrame
+    df = pd.DataFrame(data)
+    
+    return df
+
+
+async def query_to_dataframe(query: str, *args):
+    """Execute a SQL query and return results as a pandas DataFrame.
+    
+    This function executes a query using the database connection pool and
+    converts the results to a DataFrame using records_to_dataframe().
+    
+    Args:
+        query: SQL query string (supports parameterized queries with $1, $2, etc.)
+        *args: Query parameters to bind to the query
+        
+    Returns:
+        pandas.DataFrame with query results
+        
+    Raises:
+        ImportError: If pandas is not installed (optional dependency)
+        
+    Example:
+        >>> df = await query_to_dataframe(
+        ...     "SELECT * FROM transact WHERE user_id = $1",
+        ...     1
+        ... )
+        >>> print(df.head())
+    """
+    pool = await get_db_pool()
+    
+    async with pool.acquire() as conn:
+        records = await conn.fetch(query, *args)
+        return records_to_dataframe(records)
 
 
 async def close_db_pool():

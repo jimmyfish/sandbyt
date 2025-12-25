@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class TradeStrategyCreate(BaseModel):
     """Schema for creating a trade strategy."""
     symbol: str = Field(
+        min_length=1,
         max_length=15,
         description="Trading symbol (required, max 15 characters)"
     )

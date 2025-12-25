@@ -1,6 +1,6 @@
-# Project Rules - Newsly API
+# Project Rules - goblin API
 
-These rules define how to build, test, and extend the Newsly FastAPI service. Follow them for every change to keep the codebase consistent and secure.
+These rules define how to build, test, and extend the goblin FastAPI service. Follow them for every change to keep the codebase consistent and secure.
 
 ## 1. General Code Style
 - Use modern Python (3.10+) features; prefer async/await for I/O.
@@ -13,7 +13,7 @@ These rules define how to build, test, and extend the Newsly FastAPI service. Fo
 ## 2. Configuration & Secrets
  - Load configuration exclusively via `pydantic-settings` (`app/core/config.py`). Do not fetch from `os.getenv` inside business logic.
 - Add new settings to `.env.example` (if created later) and document them in `README.md`.
-- Database name remains `newsly`. Never hardcode credentials in source files.
+- Database name remains `goblin`. Never hardcode credentials in source files.
 
 ## 3. Dependencies
 - Pin new libraries in `requirements.txt` with a minimum version. Keep optional extras explicit (e.g., `passlib[bcrypt]`).

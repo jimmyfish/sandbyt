@@ -2,7 +2,7 @@
 
 ## Architecture
 
-Newsly API follows a **modern async Python architecture** with FastAPI as the web framework and direct PostgreSQL access via asyncpg. The application uses a connection pooling pattern for database operations and JWT-based stateless authentication.
+goblin API follows a **modern async Python architecture** with FastAPI as the web framework and direct PostgreSQL access via asyncpg. The application uses a connection pooling pattern for database operations and JWT-based stateless authentication.
 
 ## Backend
 
@@ -62,7 +62,7 @@ Key configuration variables (set in `.env` file):
 # Database Configuration
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=newsly
+DB_NAME=goblin
 DB_USER=postgres
 DB_PASSWORD=postgres
 
@@ -93,7 +93,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Create database (PostgreSQL)
-createdb newsly
+createdb goblin
 ```
 
 ### API Access

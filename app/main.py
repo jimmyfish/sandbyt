@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Newsly API",
+    title="goblin API",
     description="A FastAPI application with PostgreSQL connection",
     version="1.0.0",
     lifespan=lifespan,
@@ -36,7 +36,7 @@ app.include_router(market_router)
 @app.get("/", response_model=StandardResponse[dict], response_model_exclude_none=True)
 async def root():
     """Root endpoint"""
-    return StandardResponse(message="Welcome to Newsly API")
+    return StandardResponse(message="Welcome to goblin API")
 
 
 @app.get("/health", response_model=StandardResponse[dict], response_model_exclude_none=True)

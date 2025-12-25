@@ -55,7 +55,7 @@ async def fetch_last_price(*, symbol: str, category: str = "spot") -> BybitTicke
     params = {"category": category, "symbol": normalized_symbol}
     headers = {
         "Accept": "application/json",
-        "User-Agent": "newsly/1.0",
+        "User-Agent": "goblin/1.0",
     }
 
     timeout = httpx.Timeout(settings.BYBIT_TIMEOUT_SECONDS)

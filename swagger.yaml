@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Newsly API
+  title: goblin API
   description: A FastAPI application with PostgreSQL connection
   version: 1.0.0
 servers:

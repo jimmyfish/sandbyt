@@ -879,7 +879,7 @@ from app.core.config import settings
 async def test_db_pool():
     """Create a test database connection pool for the entire test session."""
     pool = await asyncpg.create_pool(
-        database="test_newsly",  # Separate test database
+        database="test_goblin",  # Separate test database
         user=settings.DB_USER,
         password=settings.DB_PASSWORD,
         host=settings.DB_HOST,

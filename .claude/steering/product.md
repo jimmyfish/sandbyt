@@ -1,8 +1,8 @@
-# Product Overview: Newsly API
+# Product Overview: goblin API
 
 ## Product Description
 
-Newsly is a FastAPI-based REST API service that provides user authentication and management capabilities. It serves as a foundation for building applications that require secure user registration, login, and profile management.
+goblin is a FastAPI-based REST API service that provides user authentication and management capabilities. It serves as a foundation for building applications that require secure user registration, login, and profile management.
 
 **Note**: The project is currently in a migration phase, with plans to extend functionality for a Binance trading sandbox application. See `.claude/specs/initial-migrations/` for detailed migration requirements.
 

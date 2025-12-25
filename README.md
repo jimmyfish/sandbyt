@@ -1,4 +1,4 @@
-# Newsly FastAPI Application
+# goblin FastAPI Application
 
 A FastAPI skeleton application with PostgreSQL database connection and health check endpoint.
 
@@ -31,7 +31,7 @@ pip install -r requirements.txt
 # Database Configuration
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=newsly
+DB_NAME=goblin
 DB_USER=postgres
 DB_PASSWORD=postgres
 
@@ -45,9 +45,9 @@ BINANCE_API_URL=https://api.binance.com
 # For testnet, use: BINANCE_API_URL=https://testnet.binance.vision
 ```
 
- 3. Make sure PostgreSQL is running and the database `newsly` exists:
+ 3. Make sure PostgreSQL is running and the database `goblin` exists:
 ```bash
-createdb newsly
+createdb goblin
 ```
 
  4. Run database migrations to set up the schema:

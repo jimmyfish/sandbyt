@@ -145,3 +145,38 @@ These rules guarantee:
 
 This makes the project self-explanatory, even for new developers or future AI agents.
 
+---
+
+## **8. Virtual Environment Activation Requirements**
+Before running **any Python script, command, or test**, the assistant **MUST activate the virtual environment** using the following commands:
+
+### **Rule G — Mandatory Virtualenv Activation**
+The assistant must execute these commands in sequence before running any Python-related operations:
+
+1. **Set pyenv shell environment:**
+   ```bash
+   pyenv shell letsplay
+   ```
+
+2. **Activate the virtual environment:**
+   ```bash
+   pyenv activate letsplay
+   ```
+
+### **Rule H — Environment Verification**
+After activation, the assistant should verify the environment is active by:
+- Checking that the Python interpreter path includes the virtualenv
+- Ensuring dependencies are accessible
+- Confirming the correct Python version is in use
+
+### **Rule I — Consistent Environment Usage**
+All Python operations must be performed within the activated virtualenv:
+- Running scripts
+- Installing packages
+- Running tests
+- Executing migrations
+- Starting the application server
+
+**Critical**: Never run Python commands without first activating the virtualenv as specified above.
+
+---

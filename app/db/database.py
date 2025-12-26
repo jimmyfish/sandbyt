@@ -34,6 +34,7 @@ async def init_db():
     pool = await get_db_pool()
 
     async with pool.acquire() as conn:
+        # Users table (extended with name + balance)
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -69,6 +70,77 @@ async def init_db():
                     ALTER TABLE users ADD COLUMN updated_at TIMESTAMPTZ DEFAULT timezone('utc', now());
                 END IF;
             END $$;
+            """
+        )
+
+        # Orders / transactions
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS transact (
+                id SERIAL PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                buy_price DECIMAL(30,20) NOT NULL,
+                sell_price DECIMAL(30,20),
+                status INTEGER NOT NULL DEFAULT 1,
+                quantity DECIMAL(30,20) NOT NULL,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+                updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
+            """
+        )
+
+        # Watchlists
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS watchlists (
+                id SERIAL PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
+            """
+        )
+
+        # Logs
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS log (
+                id SERIAL PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                data TEXT NOT NULL,
+                action TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+                updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
+            """
+        )
+
+        # Strategies (soft-delete supported)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS strategies (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+                updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
+            """
+        )
+
+        # Trade strategy mappings
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS trade_strategies (
+                id SERIAL PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                strategy_id INTEGER NOT NULL REFERENCES strategies(id),
+                timestamp TEXT NOT NULL DEFAULT '5m',
+                deleted_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+                updated_at TIMESTAMPTZ DEFAULT timezone('utc', now())
+            );
             """
         )
 
@@ -828,8 +900,11 @@ async def update_strategy(
             param_index += 1
         
         if not updates:
-            # No fields to update, just fetch and return
-            return await get_strategy_by_id(strategy_id)
+            # No fields to update, just fetch and return (or raise if not found)
+            existing = await get_strategy_by_id(strategy_id)
+            if existing is None:
+                raise ValueError(f"Strategy with id {strategy_id} not found")
+            return existing
         
         # Add updated_at
         updates.append("updated_at = timezone('utc', now())")
@@ -1017,8 +1092,11 @@ async def update_trade_strategy(
             param_index += 1
         
         if not updates:
-            # No fields to update, just fetch and return
-            return await get_trade_strategy_by_id(trade_strategy_id)
+            # No fields to update, just fetch and return (or raise if not found)
+            existing = await get_trade_strategy_by_id(trade_strategy_id)
+            if existing is None:
+                raise ValueError(f"Trade strategy with id {trade_strategy_id} not found")
+            return existing
         
         # Add updated_at
         updates.append("updated_at = timezone('utc', now())")

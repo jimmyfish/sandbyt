@@ -10,11 +10,13 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 def _serialize_user(record) -> UserResponse:
     """Convert an asyncpg.Record to a UserResponse"""
+    # Let UserResponse handle Decimal->string formatting for `balance`.
     return UserResponse.model_validate(
         {
             "id": record["id"],
             "email": record["email"],
-            "balance": str(record["balance"]),
+            "name": record["name"],
+            "balance": record["balance"],
             "created_at": record["created_at"],
         }
     )

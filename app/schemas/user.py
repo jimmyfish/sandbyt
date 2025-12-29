@@ -38,12 +38,17 @@ class UserResponse(BaseModel):
     @classmethod
     def model_validate(cls, obj, **kwargs):
         """Override to convert Decimal balance to string before validation."""
-        if hasattr(obj, "__getitem__"):
-            # Handle dict-like objects (including asyncpg.Record)
-            if "balance" in obj and isinstance(obj.get("balance"), Decimal):
+        # Handle dict-like objects (including asyncpg.Record) without assuming `.get()`.
+        if hasattr(obj, "__getitem__") and "balance" in obj:
+            try:
+                balance_value = obj["balance"]
+            except Exception:
+                balance_value = None
+
+            if isinstance(balance_value, Decimal):
                 # Convert to mutable dict and update balance
                 obj_dict = dict(obj)
-                obj_dict["balance"] = _format_decimal(obj["balance"])
+                obj_dict["balance"] = _format_decimal(balance_value)
                 return super().model_validate(obj_dict, **kwargs)
         return super().model_validate(obj, **kwargs)
 

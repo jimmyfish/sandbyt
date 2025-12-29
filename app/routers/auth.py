@@ -22,7 +22,7 @@ def _serialize_user(record) -> UserResponse:
     return UserResponse(
         id=record["id"],
         email=record["email"],
-        name=record.get("name", ""), 
+        name=record["name"],
         balance=record["balance"],  # Let UserResponse format the Decimal
         created_at=record["created_at"],
     )
